@@ -48,3 +48,13 @@ java {
     }
     withSourcesJar()
 }
+
+fabricApi {
+    configureTests {
+        createSourceSet = true
+        modId = 'edb-tests'
+        enableGameTests = true
+        enableClientGameTests = false
+        eula = false
+    }
+}
