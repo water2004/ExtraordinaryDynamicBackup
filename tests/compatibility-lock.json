@@ -1,0 +1,93 @@
+{
+  "minecraft": "26.3",
+  "mods": {
+    "carpet": {
+      "version": "26.3+v261008",
+      "versionId": "carpet:fabric-carpet:26.3+v261008",
+      "filename": "fabric-carpet-26.3+v261008.jar",
+      "url": "https://masa.dy.fi/maven/carpet/fabric-carpet/26.3%2Bv261008/fabric-carpet-26.3%2Bv261008.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "13f11bffaaef0a03066d7da8ac5d560be002169d56fbc297a2fc3aa688f9bd553d1116f1f2aab3a9f4796d5a7bd10254b9cdcef1f6bd718560eb333302b59052"
+    },
+    "carpet-tis-addition": {
+      "version": "v1.82.4-mc26.3",
+      "versionId": "GN7VqWFY",
+      "filename": "carpet-tis-addition-v1.82.4-mc26.3.jar",
+      "url": "https://cdn.modrinth.com/data/jE0SjGuf/versions/GN7VqWFY/carpet-tis-addition-v1.82.4-mc26.3.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "df3eb8c85be8fc64ec744beaa77b560755b3e7eacf364e3f55c4ce66ca4e55f4c76df5ede15c34ddd8d7cbcf55a8c2976a0f1b37c4464a68a368de70d1908c4b"
+    },
+    "carpet-ams-addition": {
+      "version": "mc26.3-v26.3.1",
+      "versionId": "wqCtfmVS",
+      "filename": "carpet-ams-addition-v26.3.1-mc26.3.jar",
+      "url": "https://cdn.modrinth.com/data/q4fx1eTg/versions/wqCtfmVS/carpet-ams-addition-v26.3.1-mc26.3.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "b62df773a5920a21fba17e393e19fd190bc8ded81f89610255627b13f2b61eddbf3f82e64154d1e3f6774690433c9f00eab6d5dd95c2d0e78b389f18361dfe8d"
+    },
+    "lithium": {
+      "version": "mc26.3-0.26.2-fabric",
+      "versionId": "xS0Q8LSi",
+      "filename": "lithium-fabric-0.26.2+mc26.3.jar",
+      "url": "https://cdn.modrinth.com/data/gvQqBUqZ/versions/xS0Q8LSi/lithium-fabric-0.26.2%2Bmc26.3.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "4d7fee66132eedc71feab9390b92c95d7058edbdad0fecfac1d836a2950b97a7ca463afbede61c7ef361ce65e1f927ab9e89dde5bf2e0e0ce486afb5c5dbee40"
+    },
+    "vmp-fabric": {
+      "version": "0.2.0+beta.7.238+26.3",
+      "versionId": "2TFDVjDf",
+      "filename": "vmp-fabric-mc26.3-0.2.0+beta.7.238-all.jar",
+      "url": "https://cdn.modrinth.com/data/wnEe9KBa/versions/2TFDVjDf/vmp-fabric-mc26.3-0.2.0%2Bbeta.7.238-all.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "c8658ccf8818a258e1160a2d394c80fd52708611570dc28d6bc391671a23e193760766ef77ddc5907e1a3a757cf20f4def67ae2bc184269effa547da1f377667"
+    },
+    "c2me-fabric": {
+      "version": "0.4.2-alpha.0.106+26.3",
+      "versionId": "gKKkuSYc",
+      "filename": "c2me-fabric-mc26.3-0.4.2-alpha.0.106.jar",
+      "url": "https://cdn.modrinth.com/data/VSNURh3q/versions/gKKkuSYc/c2me-fabric-mc26.3-0.4.2-alpha.0.106.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "047ed3fe3869d0185c6d1e94fd1e725b2ad40047e4929f22692090570af28d0075849cb65335b602658859c7d437cce51c94082c0c798617314764cfdc0a1d71"
+    },
+    "teleportcommandsfabric": {
+      "version": "2.4.1",
+      "versionId": "5Yw3OOkF",
+      "filename": "tpc-2.4.1-mc26.1.2-fabric.jar",
+      "url": "https://cdn.modrinth.com/data/ez3Wxkfr/versions/5Yw3OOkF/tpc-2.4.1-mc26.1.2-fabric.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "0bc795ffcbdeffa6cce67ab73e5633a62fc3188358551900f53bf80e6efbe0f25f6177c2fc48f49f7e7059e866e7af9b9dc8c06ff6daa1e2c97c0f734b82395c"
+    },
+    "eco": {
+      "version": "1.0.0-mc26.3-alpha.11",
+      "versionId": "v1.0.0-alpha.11",
+      "filename": "entity_collision_optimizer-1.0.0-mc26.3-alpha.11.jar",
+      "url": "https://github.com/water2004/EntityCollisionOptimizer/releases/download/v1.0.0-alpha.11/entity_collision_optimizer-1.0.0-mc26.3-alpha.11.jar",
+      "hashAlgorithm": "SHA256",
+      "hash": "ee5910420cfb6b3a1c1d497cd0e015adaaccbe8ad103c86f01cfd621be86c961"
+    },
+    "edtp": {
+      "version": "1.11",
+      "versionId": "V4537JJ5",
+      "filename": "carpet_edtp_addition-1.11 (1).jar",
+      "url": "https://cdn.modrinth.com/data/slX6HdVH/versions/V4537JJ5/carpet_edtp_addition-1.11%20%281%29.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "f1198f3ab8c648bf9142324ef39ef333753d20e66f4c7f7700d7f5ff7edf570a8564759d0dfec6a31f75cf7f37e4e493f23df2666a639bdf3c434cf6f0ceeb5e"
+    },
+    "gca": {
+      "version": "v2.12.9+build.104",
+      "versionId": "2RzJePyd",
+      "filename": "gugle-carpet-addition-v2.12.9+build.104.jar",
+      "url": "https://cdn.modrinth.com/data/UHjbX5mk/versions/2RzJePyd/gugle-carpet-addition-v2.12.9%2Bbuild.104.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "5a0f8a2b4e6cf9f6ad487e2e5991cc7cfb12cb5cc796131c0a4373a77dc584d144fc5e6f323c28dfcc124ee66da68c8e15b32662fd8e5dcdb9cc15b6eb1910e5"
+    },
+    "extra-extras": {
+      "version": "26.3-1.5.0",
+      "versionId": "qTP1zKGB",
+      "filename": "carpet-extra-extras-26.3-1.5.0.jar",
+      "url": "https://cdn.modrinth.com/data/2O3YTVOd/versions/qTP1zKGB/carpet-extra-extras-26.3-1.5.0.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "8e8514d81c2c7caefc33aafaa38f06fefc587ae8cc4b82bf222d18b5bc5bd056ac1c73b085460be57ddcdda47e7e54bacc10dbcaa175533b881b5ebba98e3dda"
+    }
+  }
+}

@@ -58,3 +58,52 @@ fabricApi {
         eula = false
     }
 }
+
+// Optional, pinned test fixtures. Never include compatibility mods in the published jar.
+def compatNames = providers.gradleProperty('edbCompat').orElse('').get().split(',').findAll { !it.isBlank() }
+if (!compatNames.isEmpty()) {
+    def lock = new groovy.json.JsonSlurper().parse(file('tests/compatibility-lock.json'))
+    compatNames.each { name ->
+        def fixture = lock.mods[name]
+        if (fixture == null) throw new GradleException("Unknown compatibility fixture: ${name}")
+        def jar = file("build/compat-mods/${fixture.filename}")
+        if (!jar.isFile()) throw new GradleException("Run scripts/prepare-compat.ps1 first: missing ${jar}")
+        dependencies.add(sourceSets.gametest.runtimeOnlyConfigurationName, files(jar))
+    }
+}
+tasks.named('runGameTest', JavaExec) {
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+    systemProperty 'edb.test.stress', providers.gradleProperty('edbStress').orElse('false').get()
+    systemProperty 'edb.test.profile', compatNames.isEmpty() ? 'vanilla' : compatNames.join(',')
+    doFirst { file('build/run/gameTest/edb-test-result.txt').delete() }
+    doLast {
+        def result = file('build/run/gameTest/edb-test-result.txt')
+        if (result.isFile() && result.text.startsWith('FAIL')) throw new GradleException(result.text)
+    }
+}
+
+loom.runs {
+    edbDedicatedTest {
+        server()
+        source sourceSets.gametest
+        runDir 'build/run/edbDedicatedTest'
+        vmArg '-Dedb.test.dedicated=true'
+        vmArg '-Dedb.test.stress=true'
+        vmArg '--enable-native-access=ALL-UNNAMED'
+        programArg '--nogui'
+    }
+}
+tasks.named('runEdbDedicatedTest', JavaExec) {
+    systemProperty 'edb.test.profile', compatNames.isEmpty() ? 'vanilla' : compatNames.join(',')
+    doFirst {
+        def consent = file('build/run/edbDedicatedTest/eula.txt')
+        if (!consent.isFile() || !consent.text.contains('eula=true')) {
+            throw new GradleException('The isolated dedicated test server requires acceptance of the Minecraft EULA in build/run/edbDedicatedTest/eula.txt')
+        }
+        file('build/run/edbDedicatedTest/edb-test-result.txt').delete()
+    }
+    doLast {
+        def result = file('build/run/edbDedicatedTest/edb-test-result.txt')
+        if (!result.isFile() || result.text.trim() != 'PASS') throw new GradleException("Dedicated test did not pass: ${result.isFile() ? result.text : 'no result'}")
+    }
+}

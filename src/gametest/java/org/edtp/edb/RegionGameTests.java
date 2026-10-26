@@ -19,11 +19,19 @@ public class RegionGameTests {
     private static long startEvents, endEvents;
     static {
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.START_SERVER_TICK.register(server -> startEvents++);
-        net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> endEvents++);
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> {
+            endEvents++;
+            // The accelerated GameTest loop must leave disk workers time to complete.
+            if (Boolean.getBoolean("edb.test.stress")) java.util.concurrent.locks.LockSupport.parkNanos(1_000_000L);
+        });
     }
-    @GameTest(structure = "fabric-gametest-api-v1:empty", maxTicks = 1200)
+    @GameTest(structure = "fabric-gametest-api-v1:empty", maxTicks = 1000000)
     public void loadedChunkRoundTrip(GameTestHelper test) {
         org.spongepowered.asm.mixin.MixinEnvironment.getCurrentEnvironment().audit();
+        if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("c2me")) {
+            rejectC2me(test);
+            return;
+        }
         blockEntityAdapters(test);
         var level = test.getLevel();
         BlockPos pos = test.absolutePos(new BlockPos(1, 2, 1));
@@ -40,17 +48,28 @@ public class RegionGameTests {
         service.signUpdate(filter, ignored -> asyncApplied.set(true), level.getServer());
         CompletableFuture.delayedExecutor(250, java.util.concurrent.TimeUnit.MILLISECONDS).execute(() -> filter.complete("filtered text"));
         level.getServer().schedule(new net.minecraft.server.TickTask(level.getServer().getTickCount(), () -> queued.set(true)));
-        service.requestBackup(name, selection, message -> { if (message.startsWith("Backup complete")) observedAtCapture.set(queued.get() && asyncApplied.get()); });
+        var compatibility = new CompatibilityProbes(test, chunk);
+        service.requestBackup(name, selection, message -> {
+            if (message.startsWith("EDB: simulation")) compatibility.begin(chunk);
+            if (message.startsWith("Backup complete")) {
+                observedAtCapture.set(queued.get() && asyncApplied.get());
+                compatibility.captured();
+            }
+        });
         test.runAfterDelay(2, () -> {
             test.assertTrue(service.status().startsWith("Backup complete"), service.status());
             test.assertTrue(observedAtCapture.get(), "Preparation must drain already queued vanilla work before capture");
+            compatibility.resumed();
             level.setBlockAndUpdate(pos, Blocks.GOLD_BLOCK.defaultBlockState());
-            service.requestRestore(name, message -> {});
-            test.runAfterDelay(2, () -> {
-                test.assertTrue(service.status().startsWith("Restore complete"), service.status());
-                test.assertTrue(level.getBlockState(pos).is(Blocks.DIAMOND_BLOCK), "Restored block must come from backup");
-                test.assertTrue(level.getChunkAt(pos) != oldChunk, "Restore must use a new chunk instance");
-                entityAndTickRoundTrip(test, pos, selection);
+            compatibility.latePlayerCheck(name, pos, () -> {
+                service.requestRestore(name, message -> {});
+                test.runAfterDelay(2, () -> {
+                    test.assertTrue(service.status().startsWith("Restore complete"), service.status());
+                    test.assertTrue(level.getBlockState(pos).is(Blocks.DIAMOND_BLOCK), "Restored block must come from backup");
+                    test.assertTrue(level.getChunkAt(pos) != oldChunk, "Restore must use a new chunk instance");
+                    compatibility.restored();
+                    entityAndTickRoundTrip(test, pos, selection);
+                });
             });
         });
     }
@@ -59,6 +78,7 @@ public class RegionGameTests {
         PrimedTnt tnt = new PrimedTnt(EntityTypes.TNT, level);
         tnt.setPos(pos.getX() + .5, pos.getY() + 1, pos.getZ() + .5); tnt.setNoGravity(true); tnt.setFuse(10000);
         tnt.tickCount = 123; level.addFreshEntity(tnt);
+        extraExtrasFlag(tnt, true);
         UUID uuid = tnt.getUUID();
         level.scheduleTick(pos, Blocks.DIAMOND_BLOCK, 1000, TickPriority.HIGH);
         int[] savedAge = {-1}, restoredAge = {-2}; long[] savedDelay = {-1}, restoredDelay = {-2};
@@ -84,6 +104,7 @@ public class RegionGameTests {
                 test.assertTrue(savedAge[0] == restoredAge[0], "Entity age: saved=" + savedAge[0] + ", restored=" + restoredAge[0]);
                 test.assertTrue(savedDelay[0] == restoredDelay[0], "Scheduled tick delay must survive restoration");
                 test.assertTrue(level.getEntity(uuid) != tnt, "Entity must reload as a new instance");
+                extraExtrasFlag((PrimedTnt) level.getEntity(uuid), false);
                 largeUnloadedRoundTrip(test, pos);
             });
         });
@@ -93,6 +114,8 @@ public class RegionGameTests {
         var service = RegionBackupService.get(level.getServer());
         ChunkPos stored = new ChunkPos(10000, -10000), absent = new ChunkPos(10099, -9901);
         CompoundTag terrain = SerializableChunkData.copyOf(level, level.getChunkAt(sample)).write();
+        terrain.put("block_entities", new ListTag());
+        terrain.put("block_ticks", new ListTag()); terrain.put("fluid_ticks", new ListTag());
         terrain.putInt("xPos", stored.x()); terrain.putInt("zPos", stored.z());
         terrain.putInt("edb_test_value", 42);
         CompletableFuture<Void> seed = storage.write(stored, terrain);
@@ -211,12 +234,34 @@ public class RegionGameTests {
                     test.assertTrue(service.status().startsWith("EDB failed without applying"), service.status());
                     test.assertTrue(level.getChunkAt(pos) == before, "Invalid backup unloaded live chunks");
                     test.assertTrue(level.getBlockState(pos).is(Blocks.GOLD_BLOCK), "Invalid backup changed the world");
-                    test.succeed();
+                    if (Boolean.getBoolean("edb.test.stress")) RegionStressTests.run(test); else test.succeed();
                 });
             });
         });
     }
     private void after(GameTestHelper test, CompletableFuture<?> future, Runnable action) {
         test.runAfterDelay(1, () -> { if (future.isDone()) { future.join(); action.run(); } else after(test, future, action); });
+    }
+    private void extraExtrasFlag(PrimedTnt tnt, boolean seed) {
+        if (!net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("carpet-extra-extras")) return;
+        try {
+            var field = PrimedTnt.class.getDeclaredField("cee$spawnedInLazyChunk");
+            field.setAccessible(true);
+            if (seed) field.setBoolean(tnt, true);
+            else if (!field.getBoolean(tnt)) throw new AssertionError("Extra Extras lazy TNT flag was lost");
+        } catch (ReflectiveOperationException e) { throw new RuntimeException(e); }
+    }
+    private void rejectC2me(GameTestHelper test) {
+        var service = RegionBackupService.get(test.getLevel().getServer());
+        var region = RegionSelection.of(test.getLevel().dimension().identifier().toString(), 0, 0, 0, 0);
+        for (boolean restore : new boolean[]{false, true}) {
+            boolean rejected = false;
+            try {
+                if (restore) service.requestRestore("unsupported_c2me", message -> {});
+                else service.requestBackup("unsupported_c2me", region, message -> {});
+            } catch (IllegalStateException error) { rejected = error.getMessage().contains("C2ME"); }
+            test.assertTrue(rejected && !service.active(), "C2ME must be rejected before starting maintenance");
+        }
+        test.succeed();
     }
 }
