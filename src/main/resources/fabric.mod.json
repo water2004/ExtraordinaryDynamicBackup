@@ -3,15 +3,16 @@
   "id": "extraordinarydynamicbackup",
   "version": "${version}",
   "name": "ExtraordinaryDynamicBackup",
-  "description": "",
+  "description": "Experimental regional hot backup and restore for Minecraft 26.3.",
   "environment": "*",
+  "mixins": ["extraordinarydynamicbackup.mixins.json"],
   "entrypoints": {
     "main": ["org.edtp.ExtraordinaryDynamicBackup"],
     "client": ["org.edtp.ExtraordinaryDynamicBackupClient"]
   },
   "depends": {
     "fabricloader": ">=0.19.5",
-    "minecraft": "~26.3",
+    "minecraft": "26.3",
     "java": ">=25",
     "fabric-api": "*"
   }

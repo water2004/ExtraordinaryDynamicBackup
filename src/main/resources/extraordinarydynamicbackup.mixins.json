@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "package": "org.edtp.edb.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": [
+    "ServerMixin", "DedicatedServerMixin", "CommandsMixin", "CommonListenerMixin", "GameListenerMixin", "ConfigurationListenerMixin", "PlayerListMixin", "StorageMixin",
+    "LevelMixin", "ServerLevelMixin", "ChunkMapMixin", "ServerChunkCacheMixin", "GenerationMixin",
+    "DistanceManagerMixin", "LoadingTrackerMixin", "ChunkTrackerMixin", "PathCacheMixin", "StructureCacheMixin",
+    "EntityStorageMixin", "EntityManagerMixin", "SectionStorageMixin", "PoiManagerMixin",
+    "EntityMixin", "EntityTickListMixin", "BlockEntityMixin", "PistonMixin", "TntMixin", "FallingBlockMixin", "MinecartMixin",
+    "LevelChunkMixin", "LevelChunkTicksMixin", "SerializableChunkDataMixin"
+  ],
+  "injectors": {"defaultRequire": 1}
+}
