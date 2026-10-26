@@ -49,6 +49,7 @@ public abstract class EntityMixin implements RegionAccess.RuntimeEntity {
         tag.putInt("boarding", boardingCooldown);
         tag.putString("pose", ((Entity) (Object) this).getPose().name());
         if (this instanceof RegionAccess.SpecialEntity special) special.edb$writeExtra(tag);
+        org.edtp.edb.adaptors.ModCompatibility.captureEntity((Entity) (Object) this, tag);
         return tag;
     }
     public long edb$order() { return edb$order; }
@@ -72,6 +73,7 @@ public abstract class EntityMixin implements RegionAccess.RuntimeEntity {
             self.setPose(Pose.valueOf(tag.getStringOr("pose", self.getPose().name())));
             edb$order = tag.getLongOr("order", -1);
             if (this instanceof RegionAccess.SpecialEntity special) special.edb$readExtra(tag);
+            org.edtp.edb.adaptors.ModCompatibility.restoreEntity(self, tag);
             RuntimeStateCodec.rebaseVibration(self, tag.getLongOr("capture_time", self.level().getGameTime()), self.level().getGameTime());
             if (self.level() instanceof ServerLevel level) RuntimeStateCodec.ordersChanged(level);
         });

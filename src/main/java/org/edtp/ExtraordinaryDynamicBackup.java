@@ -15,6 +15,7 @@ public final class ExtraordinaryDynamicBackup implements ModInitializer {
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
             var service = RegionBackupService.find(server);
             if (service != null) service.close();
+            else org.edtp.edb.adaptors.ModCompatibility.close(server);
         });
     }
 }

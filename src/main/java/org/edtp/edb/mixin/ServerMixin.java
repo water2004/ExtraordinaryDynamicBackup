@@ -7,9 +7,14 @@ import org.spongepowered.asm.mixin.*;
 import org.spongepowered.asm.mixin.injection.*;
 import org.spongepowered.asm.mixin.injection.callback.*;
 import java.util.function.BooleanSupplier;
-@Mixin(MinecraftServer.class)
+@Mixin(value = MinecraftServer.class, priority = 2000)
 public abstract class ServerMixin {
     @Shadow protected abstract void tickConnection();
+    // Scarpet forceTick can call tickServer directly, outside the normal loop wrapper.
+    @Inject(method = "tickServer", at = @At("HEAD"), cancellable = true)
+    private void edb$guardDirectTick(BooleanSupplier time, CallbackInfo ci) {
+        if (RegionBackupService.paused((MinecraftServer) (Object) this)) ci.cancel();
+    }
     // Keep the boundary outside tickServer, including subclass overrides and mod tick callbacks.
     // Cancelling its HEAD leaves behaviour dependent on other mixins' injection order.
     @WrapOperation(method = "processPacketsAndTick", at = @At(value = "INVOKE",

@@ -39,7 +39,7 @@ public final class RegionBackupService implements AutoCloseable {
     private final Queue<Runnable> deferred = new ConcurrentLinkedQueue<>();
     private volatile boolean active;
     private final java.util.concurrent.atomic.AtomicInteger pendingSigns = new java.util.concurrent.atomic.AtomicInteger();
-    private Phase phase = Phase.IDLE;
+    private volatile Phase phase = Phase.IDLE;
     private Request pending, request;
     private ServerLevel level;
     private RegionSelection region;
@@ -67,6 +67,10 @@ public final class RegionBackupService implements AutoCloseable {
     public static RegionBackupService get(MinecraftServer server) { return SERVICES.computeIfAbsent(server, RegionBackupService::new); }
     public static RegionBackupService find(MinecraftServer server) { return SERVICES.get(server); }
     public static boolean paused(MinecraftServer server) { var s = find(server); return s != null && s.active; }
+    public static boolean maintenanceOnCurrentThread() {
+        for (var service : SERVICES.values()) if (service.active && service.server.isSameThread()) return true;
+        return false;
+    }
     public boolean active() { return active; }
     public boolean preparing() { return active && phase == Phase.SETTLE; }
     public synchronized void acceptSign(Runnable handler) { if (!active) handler.run(); }
@@ -88,6 +92,7 @@ public final class RegionBackupService implements AutoCloseable {
     }
     private void enqueue(Request next) {
         if (active || pending != null) throw new IllegalStateException("Another EDB operation is running");
+        org.edtp.edb.adaptors.ModCompatibility.verify();
         SnapshotIO.backup(SnapshotIO.root(server), next.name);
         pending = next;
     }
@@ -144,6 +149,7 @@ public final class RegionBackupService implements AutoCloseable {
     }
     private void initialize() {
         if (!done()) return;
+        org.edtp.edb.adaptors.ModCompatibility.verify();
         Init init = (Init) work.join(); root = init.root; directory = init.directory; metadata = init.metadata; runtime = init.runtime;
         region = metadata.region();
         level = null;
@@ -151,12 +157,16 @@ public final class RegionBackupService implements AutoCloseable {
             if (candidate.dimension().identifier().toString().equals(region.dimension())) level = candidate;
         if (level == null) throw new IllegalArgumentException("Dimension not available: " + region.dimension());
         if (request.restore) {
-            for (ServerPlayer player : server.getPlayerList().getPlayers())
-                if (player.level() == level && region.contains(player.chunkPosition()))
-                    throw new IllegalArgumentException("Move players outside the restoration region first: " + player.getScoreboardName());
+            ensurePlayersOutside();
             for (ServerPlayer player : server.getPlayerList().getPlayers()) player.closeContainer();
+            org.edtp.edb.adaptors.ModCompatibility.beforeRestore(level);
         }
         transition(Phase.SETTLE);
+    }
+    private void ensurePlayersOutside() {
+        for (ServerPlayer player : server.getPlayerList().getPlayers())
+            if (player.level() == level && region.contains(player.chunkPosition()))
+                throw new IllegalArgumentException("Move players outside the restoration region first: " + player.getScoreboardName());
     }
     private RegionAccess.Chunks chunks() { return (RegionAccess.Chunks) level.getChunkSource().chunkMap; }
     private RegionAccess.Entities entities() { return (RegionAccess.Entities) ((RegionAccess.Level) level).edb$entities(); }
@@ -178,7 +188,7 @@ public final class RegionBackupService implements AutoCloseable {
         pump();
         // Vanilla block changes can enqueue POI updates on the general server queue.
         // Let the outer loop finish these while commands/packets remain gated, before taking the cut.
-        if (server.getPendingTasksCount() != 0 || pendingSigns.get() != 0) return;
+        if (server.getPendingTasksCount() != 0 || pendingSigns.get() != 0 || org.edtp.edb.adaptors.ModCompatibility.busy(server)) return;
         if (holdersBusy()) { cursor = 0; return; }
         long deadline = System.nanoTime() + FRAME_NANOS;
         for (int count = 0; cursor < region.size() && count < 128 && System.nanoTime() < deadline; count++) {
@@ -349,6 +359,8 @@ public final class RegionBackupService implements AutoCloseable {
                 orderOffset = Math.subtractExact(level.nextSubTickCount(), min);
                 ((RegionAccess.TickCounter) level).edb$reserve(Math.addExact(Math.addExact(max, orderOffset), 1));
             }
+            // SETTLE drains work accepted before maintenance, including queued player transfers.
+            ensurePlayersOutside();
             tracker().edb$mask(region); mask = true; transition(Phase.MASK);
         }
     }
@@ -424,9 +436,11 @@ public final class RegionBackupService implements AutoCloseable {
     }
     private void unmask() {
         if (!done()) return;
+        if (mask) org.edtp.edb.adaptors.ModCompatibility.blocksReplaced();
         tracker().edb$mask(null); mask = false;
         for (int end = Math.min(region.size(), cursor + 128); cursor < end; cursor++) tracker().edb$recheck(region.at(cursor).pack());
-        progress(); pump();
+        progress();
+        if (cursor == region.size() || !tracker().edb$batchBeforePump()) pump();
         if (cursor == region.size()) transition(Phase.RELOAD);
     }
     private void reload() {
@@ -479,5 +493,5 @@ public final class RegionBackupService implements AutoCloseable {
         return CompletableFuture.supplyAsync(() -> { try { return supplier.get(); } catch (Exception error) { throw new CompletionException(error); } }, io);
     }
     @FunctionalInterface private interface CheckedSupplier<T> { T get() throws Exception; }
-    @Override public void close() { io.shutdown(); SERVICES.remove(server); for (ServerLevel level : server.getAllLevels()) RuntimeStateCodec.forget(level); }
+    @Override public void close() { io.shutdown(); SERVICES.remove(server); org.edtp.edb.adaptors.ModCompatibility.close(server); for (ServerLevel level : server.getAllLevels()) RuntimeStateCodec.forget(level); }
 }

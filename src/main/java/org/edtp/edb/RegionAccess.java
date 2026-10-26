@@ -75,8 +75,9 @@ public final class RegionAccess {
     public interface StructureCache { void edb$invalidate(RegionSelection region); }
     public interface PathCache { void edb$clear(); }
     public interface Generation { boolean edb$busy(); }
-    public interface Distance { net.minecraft.server.level.LoadingChunkTracker edb$tracker(); }
+    public interface Distance { Tracker edb$tracker(); }
     public interface Tracker {
+        default boolean edb$batchBeforePump() { return false; }
         void edb$mask(RegionSelection region);
         boolean edb$blocked(long key);
         void edb$recheck(long key);
