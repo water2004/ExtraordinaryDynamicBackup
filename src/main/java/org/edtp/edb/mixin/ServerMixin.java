@@ -1,4 +1,6 @@
 package org.edtp.edb.mixin;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.server.MinecraftServer;
 import org.edtp.edb.RegionBackupService;
 import org.spongepowered.asm.mixin.*;
@@ -8,15 +10,20 @@ import java.util.function.BooleanSupplier;
 @Mixin(MinecraftServer.class)
 public abstract class ServerMixin {
     @Shadow protected abstract void tickConnection();
-    @Inject(method = "tickServer", at = @At("HEAD"), cancellable = true)
-    private void edb$maintenance(BooleanSupplier time, CallbackInfo ci) {
-        var service = RegionBackupService.find((MinecraftServer) (Object) this);
-        if (service != null && service.active()) { service.maintenanceFrame(); tickConnection(); ci.cancel(); }
-    }
-    @Inject(method = "tickServer", at = @At("RETURN"))
-    private void edb$boundary(BooleanSupplier time, CallbackInfo ci) {
-        var service = RegionBackupService.find((MinecraftServer) (Object) this);
-        if (service != null) service.endTick();
+    // Keep the boundary outside tickServer, including subclass overrides and mod tick callbacks.
+    // Cancelling its HEAD leaves behaviour dependent on other mixins' injection order.
+    @WrapOperation(method = "processPacketsAndTick", at = @At(value = "INVOKE",
+        target = "Lnet/minecraft/server/MinecraftServer;tickServer(Ljava/util/function/BooleanSupplier;)V"))
+    private void edb$boundary(MinecraftServer server, BooleanSupplier time, Operation<Void> original) {
+        var service = RegionBackupService.find(server);
+        if (service != null && service.active()) {
+            service.maintenanceFrame();
+            tickConnection();
+        } else {
+            original.call(server, time);
+            service = RegionBackupService.find(server);
+            if (service != null) service.endTick();
+        }
     }
     @Inject(method = "isPaused", at = @At("HEAD"), cancellable = true)
     private void edb$paused(CallbackInfoReturnable<Boolean> cir) {

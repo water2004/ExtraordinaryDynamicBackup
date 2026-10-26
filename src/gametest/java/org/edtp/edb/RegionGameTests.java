@@ -16,6 +16,11 @@ import net.minecraft.world.level.chunk.storage.SerializableChunkData;
 import java.util.concurrent.CompletableFuture;
 
 public class RegionGameTests {
+    private static long startEvents, endEvents;
+    static {
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.START_SERVER_TICK.register(server -> startEvents++);
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> endEvents++);
+    }
     @GameTest(structure = "fabric-gametest-api-v1:empty", maxTicks = 1200)
     public void loadedChunkRoundTrip(GameTestHelper test) {
         org.spongepowered.asm.mixin.MixinEnvironment.getCurrentEnvironment().audit();
@@ -97,10 +102,17 @@ public class RegionGameTests {
             test.assertTrue(selection.size() == 10000, "Scale test must cover 100 x 100 chunks");
             int loadedBefore = ((RegionAccess.Chunks) storage).edb$holders().size();
             String name = "large_" + UUID.randomUUID().toString().replace("-", "");
-            long[] frozenTime = {-1}, finalTime = {-2};
+            long[] frozenTime = {-1}, finalTime = {-2}, frozenEvents = {-1, -1};
             service.requestBackup(name, selection, message -> {
-                if (message.startsWith("EDB: simulation")) frozenTime[0] = level.getGameTime();
-                if (message.startsWith("Backup complete")) finalTime[0] = level.getGameTime();
+                if (message.startsWith("EDB: simulation")) {
+                    frozenTime[0] = level.getGameTime();
+                    frozenEvents[0] = startEvents; frozenEvents[1] = endEvents;
+                }
+                if (message.startsWith("Backup complete")) {
+                    finalTime[0] = level.getGameTime();
+                    test.assertTrue(startEvents == frozenEvents[0] && endEvents == frozenEvents[1],
+                        "Mod server tick callbacks ran inside the maintenance barrier");
+                }
             });
             test.runAfterDelay(2, () -> {
                 test.assertTrue(service.status().startsWith("Backup complete"), service.status());
