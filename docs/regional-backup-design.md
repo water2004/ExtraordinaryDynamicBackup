@@ -2,7 +2,7 @@
 
 本项目保存指定区域的存档内容和已核查的补充运行状态，在同一存档、同一维度、原坐标热恢复。恢复后接入当前世界时间，不倒回全局时间，也不追求未来完全重演。
 
-当前是已通过部分原版集成测试的实验实现；验证范围和未验证范围在本文末尾列出。技术栈固定为 Minecraft 26.3、Fabric Loader 0.19.5、Fabric API 0.162.0+26.3、Microsoft JDK 25。
+当前是已通过原版与部分模组组合集成测试的实验实现；验证范围和未验证范围在本文末尾及[兼容性记录](compatibility-26.3.md)列出。技术栈固定为 Minecraft 26.3、Fabric Loader 0.19.5、Fabric API 0.162.0+26.3、Microsoft JDK 25。
 
 ## 文件职责
 
@@ -20,7 +20,9 @@
 | `edb/mixin/EntityManagerMixin.java` 等 | 区分内存实体、待载入实体与磁盘记录，推进原版实体保存/卸载 |
 | `edb/mixin/SectionStorageMixin.java` 等 | POI 内存序列化、等待预取、恢复前缓存失效 |
 | `edb/mixin/EntityMixin.java` 等 | 原版 NBT 之外的字段只在捕获时采集，在载入时安装 |
+| `edb/adaptors/` | 可选模组预检、异步活动收尾、运行字段与缓存适配；独立 Mixin 配置 |
 | `src/gametest/` | 真实 Minecraft/Fabric 环境中的顺序集成测试，不打入正式 mod JAR |
+| `tests/compatibility-lock.json`、`scripts/` | 固定测试模组和哈希，准备独立的测试环境 |
 
 没有为多版本预设适配层，没有持续记录事件历史，没有自动 undo、跨区域资源追踪、全存档 UUID 索引或崩溃事务日志。
 
@@ -144,5 +146,7 @@
 `runGameTest` 使用真实 26.3 Fabric 启动并执行 Mixin audit。项目的一项顺序集成测试覆盖：已加载区块新实例恢复、实体年龄/计划刻延迟、全局排队与在途异步操作、100×100 未加载区域及缺失记录、维护期间 gameTime 固定、延迟 tick 标记安装、活塞/vibration NBT 生命周期、损坏坐标预检。Fabric 另含自己的内置测试，不能把输出的测试总数当成项目场景数。
 
 GameTest 的 waitUntilNextTick 只 drain 任务、不按 20 TPS 等待，因此日志中循环数可能极大；其耗时不应外推普通服务器停顿时间。测试未启动 DedicatedServer 的 watchdog。
+
+后续已完成纯 Fabric 与常用模组同服的 256 区块/1,024 实体五轮恢复，以及 10,000 个实际有地形存档的未加载区块往返。加入 TIS 队列、VMP 加载收尾、Extra Extras TNT 标记、TPC Wild 取消与准备阶段玩家进入选区的回归。版本、指标、来源与限制见[兼容性记录](compatibility-26.3.md)。C2ME 仍未完成适配，目前操作前拒绝；没有将它的启动/拒绝测试当作恢复成功。
 
 仍待专门验证：真实多人协议与容器/预测刷新、断线和重新配置竞态、极端光照边界/世界生成中的大规模恢复、10,000 个高密度已加载区块、实际磁盘故障/进程崩溃、第三方模组写入，以及专用服 watchdog 压力表现。当前不承诺生产环境可用或任意运行态完全无损。

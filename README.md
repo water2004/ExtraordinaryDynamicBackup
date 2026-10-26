@@ -31,7 +31,15 @@ Minecraft **26.3** 的 Fabric 区域热备份、热恢复原型。Java 25，包�
 - 含玩家的载具树、根实体在选区外的跨界乘坐关系会拒绝。根实体在选区内时，其非玩家乘客随整棵树处理。检查已知实体 UUID 冲突，不扫描全世界离线实体。
 - 恢复先预检完整备份，再卸载和替换。跨区块、跨存储文件的替换不是崩溃原子事务。替换阶段失败会保持维护暂停并报告错误，不自动回滚。
 - 保留原版 watchdog。分帧返回主循环、异步磁盘 IO 避免把整次操作压成一个长 tick；8 ms 是软预算，无法抢占一次区块序列化或原版维护调用。
-- 已验证范围见下文。真实多人客户端刷新、专用服 watchdog 压力场景、第三方模组与大量已加载且实体密集的选区仍需专项验证；当前是实验版本。
+- 已验证范围见下文及[兼容性与压力测试记录](docs/compatibility-26.3.md)。真实多人客户端刷新、专用服 watchdog、10,000 个已加载高密度区块仍需专项验证；当前是实验版本。
+
+## 模组适配
+
+适配代码集中在 `src/main/java/org/edtp/edb/adaptors/`，使用独立 Mixin 配置；不捆绑被适配模组。
+
+已在同一实例验证 Carpet、TIS Addition、AMS Addition、Gugle Carpet Addition、EDTP Addition、Carpet Extra Extras、Lithium、VMP、EntityCollisionOptimizer、Teleport Commands Fabric。版本和具体测试范围见[兼容性记录](docs/compatibility-26.3.md)。这不代表 additions 的每个规则、脚本和组合都已覆盖。
+
+**C2ME 尚未完成适配**，检测到时会在开始维护前拒绝备份和恢复。VMP 的可选异步命令开关 `use_async_chunks_on_some_commands` 目前也必须关闭（默认关闭）。恢复会取消目标维度玩家的待处理 TPC Wild 搜索并释放其区块票据，避免沿用旧世界的候选位置；普通备份不取消这些请求。
 
 ## 在 IntelliJ IDEA 中打开
 
@@ -67,6 +75,8 @@ Minecraft **26.3** 的 Fabric 区域热备份、热恢复原型。Java 25，包�
 - 损坏的区块坐标在卸载前被拒绝。
 
 GameTest 使用加速循环，没有启动专用服 watchdog；其总耗时和循环次数不是普通 20 TPS 服务器的性能数据。
+
+`-PedbStress=true` 额外运行 256 个已加载区块、1,024 个实体的五轮往返，以及 10,000 个实际有数据的未加载区块逐块验证。组合模组下载、固定哈希、运行命令和专用服测试准备步骤见[兼容性记录](docs/compatibility-26.3.md)。
 
 ## 设计方案
 
