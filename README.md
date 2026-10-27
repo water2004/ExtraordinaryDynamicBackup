@@ -62,7 +62,7 @@ C2ME 适配已通过特定 26.3 版本的 GameTest 场景，包括 C2ME 单独�
 
 常用服务端组合另覆盖 ServerCore、Servux、Async、ScalableLux、Chunky、BlueMap、squaremap、Clumps、Alternate Current、WorldEdit、LuckPerms 等。适配器按模组分目录；完整版本、实际测试范围和限制见[兼容性记录](docs/compatibility-26.3.md#常用服务端模组扩展)。Chunky 正在预生成、Servux 尚有编辑任务时需先完成相应任务再回档；Moonrise 当前不支持。
 
-ECO 不承诺兼容 Async，EDB 不为二者提供并发兼容补丁。两者分别验证，合装不列为受支持组合；ECO 的区域恢复缓存刷新适配保留。
+ECO alpha.12 与 Async 的定向压力测试及 31 项依赖合装专用服测试已通过备份、恢复和正常停服，未复现旧版的碰撞表借用异常，详见[alpha.12 复测记录](tests/results/26.3-eco-alpha12.md)。上游仍不承诺与 Async 全面兼容；该结果限定于记录中的版本、配置和场景。EDB 不为二者提供并发兼容补丁，保留区域恢复所需的 ECO 缓存刷新适配。
 
 ## 在 IntelliJ IDEA 中打开
 

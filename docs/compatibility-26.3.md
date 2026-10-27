@@ -2,11 +2,11 @@
 
 记录日期：2026-10-27。Windows x64、Microsoft OpenJDK 25.0.2、Fabric Loader 0.19.5、Fabric API 0.162.0+26.3。测试使用独立 Gradle 运行目录，没有更改 Orbit 用户实例。
 
-EDB 只适配备份/恢复所需的屏障、运行状态与缓存刷新。ECO 不承诺兼容 Async；EDB 不承担两者之间的并发兼容，相关临时补丁与专属探针已经撤销。分别测试 ECO 和 Async，不将两者合装列为支持组合。交互/权限及历史实验记录见[本轮回归报告](../tests/results/26.3-command-ux.md)。
+EDB 只适配备份/恢复所需的屏障、运行状态与缓存刷新。ECO 不承诺兼容 Async；EDB 不承担两者之间的并发兼容，相关临时补丁与专属探针已经撤销。**更新：ECO alpha.12 与 Async 的定向压力测试，以及全部 31 项依赖的专用服合装复测均通过功能与正常停服检查**，见[alpha.12 复测报告](../tests/results/26.3-eco-alpha12.md)。这是固定版本和配置的实测结果，不是全面兼容承诺。交互/权限及旧版实验记录见[历史回归报告](../tests/results/26.3-command-ux.md)。
 
 ## 已执行的范围
 
-以下 11 个模组在**同一进程**加载并完成集成测试和压力场景。固定下载地址及 SHA512/SHA256 存在 [`tests/compatibility-lock.json`](../tests/compatibility-lock.json)。
+以下保留早期 11 个模组在**同一进程**加载并完成集成测试和压力场景的记录。当前固定下载地址及 SHA512/SHA256 存在 [`tests/compatibility-lock.json`](../tests/compatibility-lock.json)，其中 ECO 已由表中的 alpha.11 更新为 alpha.12；新版本组合结果见上方复测报告。
 
 | 模组 | 实测版本 | 适配与验证范围 |
 | --- | --- | --- |
@@ -156,7 +156,7 @@ Moonrise 1.2.1+e53de7f 确有 26.3 版本，但替换了区块系统，并使原
 
 原始指标：[GameTest](../tests/results/26.3-expanded-mods-gametest.csv)、[专用服](../tests/results/26.3-expanded-mods-dedicated.csv)。专用服 10,000 条地形记录备份 **34.831 秒**、恢复 **98.690 秒**，压力阶段最长维护帧 **17 ms**，整轮包括准备/基础探针的最长维护帧 **64 ms**。整服模拟在维护期间暂停。这些是本机回归观测，不是停顿时长保证；部分独立回归同时运行，不作吞吐性能对比。
 
-当前扩展测试应拆分 ECO 与 Async；以下示例保留 ECO、排除 Async。验证 Async 时改为排除 `eco`，保留 `async`：
+以下保留拆分 ECO 与 Async 的测试示例：保留 ECO、排除 Async；验证 Async 时改为排除 `eco`，保留 `async`。alpha.12 的合装复测命令另见[新报告](../tests/results/26.3-eco-alpha12.md)：
 
 ```powershell
 $env:TEMP='D:\Temp'; $env:TMP='D:\Temp'
