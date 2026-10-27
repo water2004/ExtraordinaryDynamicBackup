@@ -1,0 +1,8 @@
+788ab77883826c7e45e55c82282a19cafe0d3087f6497e8fec146c940cbc3071  build/libs/ExtraordinaryDynamicBackup-0.1.0.jar
+d62ccb7bf555af87e06e38a96ddc744a207880ad4d0799c6be3d242935e6075f  .gradle/research/gui-final-client.log
+948371f059a38d9048f67f84c64a8c030a03be6389be597789515a8f80ab0da1  .gradle/research/gui-final-client-no-litematica.log
+c9ceb166041e83988a83675390c1da133d5da47b3adb725d280f98c697c0a53a  .gradle/research/gui-final-client-no-libraries.log
+df8e88dc3b79298b56ace42182ddd5157b37dad97e40902c750212426617cb25  .gradle/research/gui-release-build.log
+67ab01580e948ba07f223384f53f7a8ee5628b9521942483cf9bc97a6166256a  .gradle/research/gui-release-dedicated.log
+741067bf1e6ddbd520ef0ba763fc1adb89b0562cb1cf6af16592696fda617014  tests/results/26.3-client-management-dedicated.csv
+fe100843aeb9e2d5f3fd235e9e742de83e28c445b0d74f07e19d98f26bdba3f9  tests/results/26.3-client-management-dedicated.profile.txt
