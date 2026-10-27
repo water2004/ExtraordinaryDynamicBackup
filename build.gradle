@@ -29,6 +29,19 @@ dependencies {
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 }
 
+repositories {
+    maven { url = 'https://maven.fallenbreath.me/releases'; content { includeGroup('me.fallenbreath') } }
+    maven { url = 'https://jitpack.io' }
+}
+dependencies {
+    // Client-only, optional at runtime; use the same pinned 26.3 APIs as the local reference projects.
+    clientCompileOnly "com.github.sakura-ryoko:malilib:${project.malilib_version}"
+    if (providers.gradleProperty('edbClientLibraries').orElse('true').get().toBoolean()) {
+        clientRuntimeOnly "com.github.sakura-ryoko:malilib:${project.malilib_version}"
+    }
+    clientCompileOnly "com.github.sakura-ryoko:litematica:${project.litematica_version}"
+}
+
 processResources {
     inputs.property 'version', project.version
     filesMatching('fabric.mod.json') {
@@ -54,9 +67,24 @@ fabricApi {
         createSourceSet = true
         modId = 'edb-tests'
         enableGameTests = true
-        enableClientGameTests = false
+        enableClientGameTests = true
         eula = false
     }
+}
+
+sourceSets.gametest.compileClasspath += sourceSets.client.output
+sourceSets.gametest.runtimeClasspath += sourceSets.client.output
+dependencies {
+    gametestCompileOnly "com.github.sakura-ryoko:malilib:${project.malilib_version}"
+    gametestCompileOnly "com.github.sakura-ryoko:litematica:${project.litematica_version}"
+    if (providers.gradleProperty('edbClientLibraries').orElse('true').get().toBoolean()) {
+        gametestRuntimeOnly "com.github.sakura-ryoko:malilib:${project.malilib_version}"
+        if (providers.gradleProperty('edbClientLitematica').orElse('true').get().toBoolean())
+            gametestRuntimeOnly "com.github.sakura-ryoko:litematica:${project.litematica_version}"
+    }
+}
+tasks.named('runClientGameTest') {
+    jvmArgs '-Dfabric.client.gametest.disableNetworkSynchronizer=true', '--enable-native-access=ALL-UNNAMED'
 }
 
 // Optional, pinned test fixtures. Never include compatibility mods in the published jar.

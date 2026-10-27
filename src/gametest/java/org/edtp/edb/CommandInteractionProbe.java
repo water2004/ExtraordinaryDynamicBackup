@@ -43,7 +43,7 @@ final class CommandInteractionProbe {
         probe.permissions();
         probe.confirmations();
         var catalog = BackupCatalog.get(test.getLevel().getServer());
-        catalog.submit(() -> { probe.storage(); return true; }).whenComplete((ignored, error) -> test.getLevel().getServer().execute(() -> test.runAfterDelay(1, () -> {
+        catalog.submit(() -> { probe.storage(); ManagementProjectionProbe.verify(catalog, test.getLevel().getServer()); return true; }).whenComplete((ignored, error) -> test.getLevel().getServer().execute(() -> test.runAfterDelay(1, () -> {
             test.assertTrue(error == null, "Catalog persistence test failed: " + error);
             probe.create();
         })));
@@ -101,7 +101,14 @@ final class CommandInteractionProbe {
         test.assertTrue(!confirmations.remember("alice", older, action, 10), "Old preview must not replace a newer request");
         var deletion = new CommandConfirmations.Action(CommandConfirmations.Kind.DELETE_REGION, "b", null, null);
         confirmations.remember("alice", newer, deletion, 10);
+        String nonce = confirmations.peek("alice", 11).nonce();
+        rejected(() -> confirmations.consume("alice", "stale-window", 11));
+        confirmations.cancel("alice", "stale-window");
+        test.assertTrue(confirmations.peek("alice", 11).nonce().equals(nonce), "Stale GUI must not consume or cancel a newer CLI preview");
         test.assertTrue(confirmations.consume("alice", 11).equals(deletion), "Newest action must replace earlier restore");
+        token = confirmations.begin("alice"); confirmations.remember("alice", token, action, 10);
+        nonce = confirmations.peek("alice", 11).nonce();
+        test.assertTrue(confirmations.consume("alice", nonce, 11).equals(action), "GUI token must consume the same CLI action");
     }
     private static void rejected(Runnable action) {
         try { action.run(); } catch (IllegalStateException expected) { return; }
@@ -178,7 +185,7 @@ final class CommandInteractionProbe {
     }
     private String base() { return "edb region " + name; }
     private void create() {
-        command("edb region create " + name + " -1 -2 0 1");
+        command("edb region create " + name + " in overworld -1 -2 0 1");
         await("已创建区域", () -> {
             test.assertTrue(messages.subList(messageStart, messages.size()).stream().anyMatch(m -> m.contains("区块 (-1, -1) → (0, 0)") && m.contains("方块 X/Z (-1, -2) → (0, 1)")),
                     "Exact block coordinates must retain their boundaries across zero");
