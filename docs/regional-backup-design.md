@@ -9,12 +9,15 @@
 | 文件/目录 | 实际职责 |
 | --- | --- |
 | `ExtraordinaryDynamicBackup.java` | 注册命令、释放服务器生命周期资源 |
-| `edb/BackupCommands.java` | backup、restore、list、status；区块坐标和命令权限 |
-| `edb/RegionSelection.java` | 同维度、完整高度、闭区间区块选区；不保存全区块对象列表 |
-| `edb/RegionBackupService.java` | 主线程状态机、存储 Future、分批捕获/预检/替换、错误与进度处理 |
-| `edb/SnapshotIO.java` | 文件布局、压缩 NBT、存在标记、世界标识、完成发布 |
-| `edb/RuntimeStateCodec.java` | 计划刻、方块事件、实体/方块实体顺序、时间重基 |
-| `edb/RegionAccess.java` | 仅供当前 26.3 实现使用的窄访问桥接接口 |
+| `edb/command/` | 命令树、异步目录查询、恢复预览与限时确认 |
+| `edb/config/BackupConfig.java` | OP 等级配置、严格校验和动态权限判断 |
+| `edb/region/RegionSelection.java` | 同维度、完整高度、闭区间区块选区；不保存全区块对象列表 |
+| `edb/region/RegionRepository.java` | 按世界持久化命名区域定义，原子替换 JSON 文件 |
+| `edb/operation/RegionBackupService.java` | 主线程状态机、存储 Future、分批捕获/预检/替换、错误与进度处理 |
+| `edb/storage/SnapshotIO.java` | 文件布局、压缩 NBT、存在标记、世界标识、完成发布 |
+| `edb/runtime/RuntimeStateCodec.java` | 计划刻、方块事件、实体/方块实体顺序、时间重基 |
+| `edb/bridge/RegionAccess.java` | 仅供当前 26.3 实现使用的窄访问桥接接口 |
+| `edb/ui/OperationMessages.java` | 服务端文本、阶段进度、整服暂停与结束通知 |
 | `edb/mixin/ServerMixin.java` 等 | tick 边界、通用任务队列、连接/命令/异步牌子更新门控 |
 | `edb/mixin/ChunkTrackerMixin.java` 等 | 临时屏蔽加载距离图，使原版 DistanceManager 执行降级、卸载、恢复后的重新计算 |
 | `edb/mixin/EntityManagerMixin.java` 等 | 区分内存实体、待载入实体与磁盘记录，推进原版实体保存/卸载 |
@@ -33,6 +36,7 @@
 ```text
 <世界>/edb/
   world-id.txt
+  regions.json             # 可复用区域定义，不是快照数据
   backups/
     <name>/
       manifest.nbt

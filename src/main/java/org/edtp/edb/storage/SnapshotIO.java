@@ -31,7 +31,10 @@ public final class SnapshotIO {
     private static final int PUBLISH_MOVE_ATTEMPTS = 5;
     private SnapshotIO() {}
 
-    public record Metadata(RegionSelection region, String worldId, long gameTime, int dataVersion) {
+    public record Metadata(RegionSelection region, String worldId, long gameTime, int dataVersion, long createdAt) {
+        public Metadata(RegionSelection region, String worldId, long gameTime, int dataVersion) {
+            this(region, worldId, gameTime, dataVersion, System.currentTimeMillis());
+        }
         public CompoundTag encode() {
             CompoundTag tag = new CompoundTag();
             tag.putInt("format", FORMAT);
@@ -42,6 +45,7 @@ public final class SnapshotIO {
             tag.putInt("min_x", region.minX()); tag.putInt("min_z", region.minZ());
             tag.putInt("max_x", region.maxX()); tag.putInt("max_z", region.maxZ());
             tag.putLong("game_time", gameTime);
+            tag.putLong("created_at", createdAt);
             tag.putInt("chunks", region.size());
             return tag;
         }
@@ -59,8 +63,11 @@ public final class SnapshotIO {
         return id;
     }
     public static Path backup(Path root, String name) {
-        if (!NAME.matcher(name).matches()) throw new IllegalArgumentException("Backup name: 1-64 letters, digits, '_' or '-'");
+        validateName(name);
         return root.resolve("backups").resolve(name);
+    }
+    public static void validateName(String name) {
+        if (!NAME.matcher(name).matches()) throw new IllegalArgumentException("Name: 1-64 letters, digits, '_' or '-'");
     }
     public static Path begin(Path root, String name) throws IOException {
         Path target = backup(root, name);
@@ -124,7 +131,7 @@ public final class SnapshotIO {
                 tag.getInt("min_x").orElseThrow(), tag.getInt("min_z").orElseThrow(),
                 tag.getInt("max_x").orElseThrow(), tag.getInt("max_z").orElseThrow());
         if (tag.getIntOr("chunks", -1) != region.size()) throw new IOException("Incomplete chunk manifest");
-        return new Metadata(region, worldId, tag.getLong("game_time").orElseThrow(), tag.getInt("data_version").orElseThrow());
+        return new Metadata(region, worldId, tag.getLong("game_time").orElseThrow(), tag.getInt("data_version").orElseThrow(), tag.getLongOr("created_at", 0));
     }
     public static CompoundTag readRuntime(Path directory) throws IOException {
         return NbtIo.readCompressed(directory.resolve("runtime.nbt"), NbtAccounter.create(MAX_NBT_BYTES));

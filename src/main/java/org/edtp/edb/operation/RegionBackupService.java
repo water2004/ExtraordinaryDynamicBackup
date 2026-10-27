@@ -23,6 +23,7 @@ import net.minecraft.world.level.storage.TagValueOutput;
 import net.minecraft.util.ProblemReporter;
 import org.slf4j.Logger;
 import org.edtp.edb.adaptors.ModCompatibility;
+import org.edtp.edb.ui.OperationMessages;
 
 
 import java.nio.file.Path;
@@ -38,7 +39,7 @@ public final class RegionBackupService implements AutoCloseable {
     private static final int BATCH = 32;
     private static final long FRAME_NANOS = 8_000_000L;
     private enum Phase { IDLE, INIT, SETTLE, LIGHT, CAPTURE, VALIDATE, MASK, UNLOAD, DRAIN, APPLY, FLUSH, UNMASK, RELOAD, PUBLISH, FAILED }
-    private record Request(String name, RegionSelection region, boolean restore, Consumer<String> reply) {}
+    private record Request(String name, RegionSelection region, boolean restore, SnapshotIO.Metadata expected, Consumer<String> reply) {}
     private record Init(Path root, Path directory, SnapshotIO.Metadata metadata, CompoundTag runtime) {}
     private record BatchResult(long min, long max) {}
     private final MinecraftServer server;
@@ -90,12 +91,15 @@ public final class RegionBackupService implements AutoCloseable {
     public boolean failed() { return phase == Phase.FAILED; }
     public void storageFailure(Throwable failure) { if (active) writeFailure = failure; }
     public void defer(Runnable task) { deferred.add(task); }
-    public void requestBackup(String name, RegionSelection selection, Consumer<String> reply) { enqueue(new Request(name, selection, false, reply)); }
-    public void requestRestore(String name, Consumer<String> reply) { enqueue(new Request(name, null, true, reply)); }
-    public void list(Consumer<String> reply) {
-        Path snapshots = SnapshotIO.root(server);
-        supply(() -> SnapshotIO.list(snapshots)).whenComplete((names, error) -> server.execute(() ->
-                reply.accept(error == null ? (names.isEmpty() ? "No backups" : String.join(", ", names)) : "Cannot list backups: " + error)));
+    public void requestBackup(String name, RegionSelection selection, Consumer<String> reply) { enqueue(new Request(name, selection, false, null, reply)); }
+    public void requestRestore(String name, Consumer<String> reply) { requestRestore(name, null, reply); }
+    public void requestRestore(String name, SnapshotIO.Metadata expected, Consumer<String> reply) { enqueue(new Request(name, null, true, expected, reply)); }
+    public record Progress(String name, boolean restore, String phase, int processed, int total, long elapsedSeconds) {}
+    public Progress progressView() {
+        Request current = active ? request : pending;
+        return new Progress(current == null ? "" : current.name, current != null && current.restore,
+                active ? phase.name() : pending == null ? "IDLE" : "QUEUED", cursor,
+                active && region != null ? region.size() : 0, active ? (System.nanoTime() - startedAt) / 1_000_000_000 : 0);
     }
     private void enqueue(Request next) {
         if (active || pending != null) throw new IllegalStateException("Another EDB operation is running");
@@ -107,6 +111,7 @@ public final class RegionBackupService implements AutoCloseable {
     public synchronized void endTick() {
         if (active || pending == null) return;
         request = pending; pending = null; active = true; destructive = false; mask = false;
+        region = request.region;
         validated = false; fakePlayersRestored = false;
         startedAt = System.nanoTime(); frames = 0; maxFrameNanos = 0;
         lastReport = startedAt;
@@ -119,11 +124,15 @@ public final class RegionBackupService implements AutoCloseable {
             String worldId = SnapshotIO.worldId(root);
             if (initializing.restore) {
                 Path path = SnapshotIO.backup(root, initializing.name);
-                return new Init(root, path, SnapshotIO.readMetadata(path, worldId), SnapshotIO.readRuntime(path));
+                var stored = SnapshotIO.readMetadata(path, worldId);
+                if (initializing.expected != null && !initializing.expected.equals(stored))
+                    throw new IllegalStateException("Backup metadata changed after preview; preview it again");
+                return new Init(root, path, stored, SnapshotIO.readRuntime(path));
             }
             return new Init(root, SnapshotIO.begin(root, initializing.name), new SnapshotIO.Metadata(initializing.region, worldId, 0,
                     SharedConstants.getCurrentVersion().dataVersion().version()), null);
         });
+        OperationMessages.started(server, progressView());
         reply("EDB: simulation paused; preparing " + request.name);
     }
     /** Called instead of tickServer, while the outer server loop and watchdog remain live. */
@@ -133,6 +142,7 @@ public final class RegionBackupService implements AutoCloseable {
         try {
             if (System.nanoTime() - lastReport > TimeUnit.SECONDS.toNanos(5)) {
                 lastReport = System.nanoTime(); reply("EDB: " + status());
+                OperationMessages.progress(server, progressView());
             }
             if (writeFailure != null) throw new IllegalStateException("World storage write failed", writeFailure);
             if (level != null) ModCompatibility.checkStorage(level);
@@ -249,7 +259,7 @@ public final class RegionBackupService implements AutoCloseable {
             } else transition(Phase.VALIDATE);
         }
         else {
-            metadata = new SnapshotIO.Metadata(region, metadata.worldId(), level.getGameTime(), metadata.dataVersion());
+            metadata = new SnapshotIO.Metadata(region, metadata.worldId(), level.getGameTime(), metadata.dataVersion(), metadata.createdAt());
             runtime = RuntimeStateCodec.captureEvents(level, region);
             ModCompatibility.capturePlayers(level, region, runtime);
             entityOrder = RuntimeStateCodec.entityOrder(level); blockEntityOrder = RuntimeStateCodec.blockEntityOrder(level);
@@ -514,6 +524,7 @@ public final class RegionBackupService implements AutoCloseable {
             server.schedule(new net.minecraft.server.TickTask(server.getTickCount(), () -> ((RegionAccess.StructureCache) restoredLevel).edb$invalidate(restoredRegion)));
         }
         reply(message);
+        OperationMessages.finished(server, request.name, request.restore, message.startsWith("EDB failed"), (System.nanoTime() - startedAt) / 1_000_000_000);
         LOG.info("EDB maintenance: {} frames, {} ms elapsed, longest frame {} ms", frames, (System.nanoTime() - startedAt) / 1_000_000, maxFrameNanos / 1_000_000);
         Runnable task; while ((task = deferred.poll()) != null) server.execute(task);
     }
@@ -523,6 +534,7 @@ public final class RegionBackupService implements AutoCloseable {
         if (destructive || mask) {
             phase = Phase.FAILED;
             reply("EDB failed: " + lastResult + ". Simulation remains paused; inspect the log before stopping the server.");
+            OperationMessages.failed(server);
         } else finish("EDB failed without applying a restore: " + lastResult);
     }
     private <T> CompletableFuture<T> supply(CheckedSupplier<T> supplier) {

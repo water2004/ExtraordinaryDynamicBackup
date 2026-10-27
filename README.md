@@ -6,18 +6,37 @@ Minecraft **26.3** 的 Fabric 区域热备份、热恢复原型。Java 25，包�
 
 ## 使用
 
-需要最高命令权限。坐标均为**区块坐标**，两端包含在内。
+默认需要 **OP 3**。坐标均为**区块坐标**，两端包含在内、覆盖全部高度。输入 `/edb` 查看帮助。
 
 ```text
-/edb backup test 0 0 99 99
+/edb region create factory 0 0 99 99
+/edb backup test region factory
+/edb info test
 /edb restore test
+/edb restore test confirm
 /edb list
 /edb status
 ```
 
-备份使用命令所在维度；恢复使用备份记录的原维度、原坐标。可用 `/execute in minecraft:the_nether run edb backup ...` 指定维度。备份名限 1–64 位英文字母、数字、下划线或连字符；已有名称不会覆盖。
+仍支持直接坐标命令 `/edb backup test 0 0 99 99`。直接备份和区域创建使用命令所在维度，可用 `/execute in minecraft:the_nether run edb region create ...` 指定维度；通过区域名备份则使用定义中保存的维度。备份名、区域名限 1–64 位英文字母、数字、下划线或连字符；已有备份不会覆盖。
 
-操作从 tick 末开始，**暂停整服模拟**，分帧准备和读写，期间维持连接。它并非让玩家照常游玩的无停顿备份。进度每五秒输出，服务端控制台可查询 `edb status`。恢复前需让玩家离开选区，打开的容器会关闭。
+`/edb region list [页码]`、`info <区域名>`、`update <区域名> <x1> <z1> <x2> <z2>`、`remove <区域名>` 管理区域。区域定义保存在 `<世界>/edb/regions.json`；修改、删除定义不改变已有备份。
+
+**`/edb restore <备份名>` 现在只预览，不会执行恢复。** 查看维度、边界与影响后，由同一操作者在 60 秒内执行 `/edb restore <备份名> confirm`；`/edb cancel` 取消待确认操作。恢复始终使用备份记录的原维度、原坐标。已经排队或开始执行的操作不支持中途取消。
+
+配置文件 `config/extraordinarydynamicbackup.json` 首次启动自动创建：
+
+```json
+{
+  "permissionLevel": 3
+}
+```
+
+`permissionLevel` 接受整数 `0–4`，统一控制备份、恢复、区域管理与查看命令；`0` 表示所有玩家可用。修改后由 OP 4 执行 `/edb reload`，或重启服务器。非法重载保留原权限并报错。配置重载本身始终需要 OP 4。
+
+操作从 tick 末开始，**暂停整服模拟**，分帧准备和读写，期间维持连接。它并非让玩家照常游玩的无停顿备份。开始、完成、失败会在整服聊天中提示；阶段进度每五秒发送给操作者，并显示在在线玩家动作栏。进度表示当前阶段，不是总百分比。服务端控制台可查询 `edb status`。恢复前需让真实玩家离开选区，打开的容器会关闭。
+
+列表每页 8 项，备份名和区域名支持补全，聊天中的操作提示可填入命令；客户端无需安装本模组。完整命令说明、参考项目和交互边界见[命令与交互](docs/commands-and-ux.md)。
 
 未加载位置直接读取、替换存档中的记录，不为备份生成区块。地形、实体、POI 的存在与缺失分别记录；恢复为缺失会清除后来产生的数据。每批最多 32 个区块 NBT，主线程采用约 8 ms 的软时间预算；排序、事件及 UUID 元数据另行保存。
 
