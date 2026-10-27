@@ -58,12 +58,12 @@
       "hash": "0bc795ffcbdeffa6cce67ab73e5633a62fc3188358551900f53bf80e6efbe0f25f6177c2fc48f49f7e7059e866e7af9b9dc8c06ff6daa1e2c97c0f734b82395c"
     },
     "eco": {
-      "version": "1.0.0-mc26.3-alpha.11",
-      "versionId": "v1.0.0-alpha.11",
-      "filename": "entity_collision_optimizer-1.0.0-mc26.3-alpha.11.jar",
-      "url": "https://github.com/water2004/EntityCollisionOptimizer/releases/download/v1.0.0-alpha.11/entity_collision_optimizer-1.0.0-mc26.3-alpha.11.jar",
+      "version": "1.0.0-mc26.3-alpha.12",
+      "versionId": "v1.0.0-alpha.12",
+      "filename": "entity_collision_optimizer-1.0.0-mc26.3-alpha.12.jar",
+      "url": "https://github.com/water2004/EntityCollisionOptimizer/releases/download/v1.0.0-alpha.12/entity_collision_optimizer-1.0.0-mc26.3-alpha.12.jar",
       "hashAlgorithm": "SHA256",
-      "hash": "ee5910420cfb6b3a1c1d497cd0e015adaaccbe8ad103c86f01cfd621be86c961"
+      "hash": "c1080fa959fd0632760a1ba8055c4fae7068fe1c00bedefdb181bb49b5492795"
     },
     "edtp": {
       "version": "1.11",
