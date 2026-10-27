@@ -95,17 +95,17 @@
 
 ## 热恢复流程
 
-1. 读取元数据，检查世界标识、维度、版本及选区。玩家须位于选区外；关闭容器，防止界面继续引用将卸载的方块实体。
+1. 读取元数据，检查世界标识、维度、版本及选区。真实玩家须位于选区外；关闭容器，防止界面继续引用将卸载的方块实体。Carpet fake player 由专用适配器作为区域状态处理。
 2. 建立上述稳定切面。逐批读取所有备份记录，检查坐标、存在标记、可解析的 terrain/POI、运行态计划刻、实体类型与 UUID。检测当前各维度已知实体中的外部 UUID 冲突。
-3. 临时屏蔽 LoadingChunkTracker 距离图中的目标位置，并逐批请求重算。保留实际 ticket 内容，由原版 DistanceManager 两阶段更新 holder、降级可访问性、安排卸载；不直接用旧 ticket level 造新 holder。
+3. 按当前区块后端停放选区 root tickets 并触发降级。原版路径屏蔽 LoadingChunkTracker 距离图中的目标位置，保留 ticket 内容，由 DistanceManager 两阶段更新 holder；C2ME 路径经自己的 scheduler/ticket adapter 停放目标 root tickets，由 C2ME 正常更新依赖和 holder。两条路径都不直接用旧 ticket level 造新 holder。
 4. 持续推进原版 chunk/entity 卸载，确认目标从 updating/pending unload 离开、实体状态清除。等待三路存储同步和原目标/现有 holder 的光照任务；观察独立写入 Future，避免只靠一次 synchronize 忽略先前失败。
 5. 清理 POI 的解码缓存/加载标记/dirty 状态、实体 empty-chunk cache、chunk 类型与最近访问缓存、寻路与结构查询缓存，清除原区域方块事件。
 6. 分批写回 terrain/entities/poi，缺失记录写成删除。计划刻顺序整体平移到当前世界计数器之后，保持选区内原有相对顺序。
-7. 等待写入和 flush 完成，撤销加载屏蔽、逐批重新计算。原 ticket 决定哪些区块重新进入内存；没有 ticket 的位置保留在磁盘。
+7. 等待写入和 flush 完成，撤销对应后端的屏蔽/票据停放并重新计算。原 ticket 决定哪些区块重新进入内存；没有 ticket 的位置保留在磁盘。
 8. 通过原版路径建立新 chunk/entity 对象，安装已加载内容的运行态。尚未加载的运行态附在 NBT 中，等对应对象日后首次进入适当生命周期再安装。
 9. 刷新客户端，恢复模拟。既有服务器任务随后继续执行；恢复后的结构查询缓存再失效一次，防止旧排队派生索引回调留下缓存。
 
-乘坐树按根实体处理。根在选区外但有成员在选区内、或包含玩家时拒绝；根在选区内的非玩家树整体处理，可能包含位置在选区外的乘客。不会扫描世界所有未加载实体以证明全局 UUID 唯一性。
+普通实体乘坐树按根实体及其所在区块处理；根在选区外但有成员在选区内时拒绝。真实玩家不纳入区域实体快照，操作前要求其离开选区，包含真实玩家的树不作为可恢复实体树处理。Carpet fake player 是明确例外：根实体须在选区中，fake player 的玩家数据和挂载关系由 Carpet 适配器单独保存。车辆树仍由区域实体 NBT 保存；fake player 自身的玩家数据会剥离 `RootVehicle`，防止 vanilla 玩家加载路径重复恢复同一车辆。适配器记录 vehicle UUID 和 passenger seat index，在 fake player 重建后恢复挂载并重排座位，因此能保留与普通乘客交错的座位顺序。不会扫描世界所有未加载实体以证明全局 UUID 唯一性。
 
 ## 补充的运行态
 
@@ -115,6 +115,7 @@
 - 活塞：progress、progressO、lastTicked 相对时间及捕获时 ticker 顺序。
 - 振动：原版 listener NBT 保留事件与剩余 travel delay，仅重基 selector 的绝对候选时间。
 - 实体与方块实体：安装捕获的选区内部相对 tick 顺序。不会强行恢复区域外对象在过去队列中的位置。
+- Carpet fake player（仅在 Carpet 存在时）：单独保存玩家 NBT、Carpet ActionPack、当前物品使用进度、实体运行态、TIS fake-player 延迟任务和 GCA auto-fish 延迟任务；保存车辆 UUID 和座位序号以重建挂载与原座位顺序。真实玩家与其背包不属于区域备份。
 
 延迟安装标记使用 `extraordinarydynamicbackup` NBT 段。恢复的 chunk 还未开始 ticking 时，标记随再次保存保留；实际 unpack 后消费。计划刻计数器前移，避免重启或延迟加载后复用旧顺序号。
 
@@ -147,6 +148,6 @@
 
 GameTest 的 waitUntilNextTick 只 drain 任务、不按 20 TPS 等待，因此日志中循环数可能极大；其耗时不应外推普通服务器停顿时间。测试未启动 DedicatedServer 的 watchdog。
 
-后续已完成纯 Fabric 与常用模组同服的 256 区块/1,024 实体五轮恢复，以及 10,000 个实际有地形存档的未加载区块往返。加入 TIS 队列、VMP 加载收尾、Extra Extras TNT 标记、TPC Wild 取消与准备阶段玩家进入选区的回归。版本、指标、来源与限制见[兼容性记录](compatibility-26.3.md)。C2ME 仍未完成适配，目前操作前拒绝；没有将它的启动/拒绝测试当作恢复成功。
+后续已完成 vanilla 和常用模组组合下的 256 区块/1,024 实体五轮恢复，以及 10,000 个实际有地形存档的未加载区块往返。还覆盖 TIS 队列、VMP 加载收尾、Extra Extras TNT 标记、TPC Wild 取消、准备阶段玩家进入选区、Carpet fake player 车辆 seat order 与 GCA 延迟任务回归。C2ME 适配已加入 scheduler/NoTickVD 静止屏障、root ticket 暂存并由其正常降级/恢复、存储线程 IO 错误检查和 gcFree serializer runtime NBT bridge；C2ME-only 与记录中的指定组合已通过 GameTest。版本、指标和覆盖限制见[兼容性记录](compatibility-26.3.md)。另已完成十一模组组合、gcFree serializer 开启的专用服压力测试，watchdog 阈值保持 10 秒，结果 PASS；10,000 个有地形记录的未加载区块备份约 31 秒、恢复约 98 秒。它不代表任意模组任务或所有 C2ME 配置均通过。
 
-仍待专门验证：真实多人协议与容器/预测刷新、断线和重新配置竞态、极端光照边界/世界生成中的大规模恢复、10,000 个高密度已加载区块、实际磁盘故障/进程崩溃、第三方模组写入，以及专用服 watchdog 压力表现。当前不承诺生产环境可用或任意运行态完全无损。
+仍待专门验证：真实多人协议与容器/预测刷新、断线和重新配置竞态、极端光照边界/世界生成中的大规模恢复、10,000 个高密度已加载区块、整盘写满/进程崩溃和任意第三方模组写入。已验证隔离路径真实 IO 写入失败的 C2ME 错误探针，不把它等同于全部存储故障。当前不承诺生产环境可用或任意运行态完全无损。
