@@ -71,14 +71,26 @@ if (!compatNames.isEmpty()) {
         dependencies.add(sourceSets.gametest.runtimeOnlyConfigurationName, files(jar))
     }
 }
+def verifyTestShutdown = { String run ->
+    def marker = file("build/run/${run}/edb-shutdown-result.txt")
+    def log = file("build/run/${run}/logs/latest.log")
+    if (!marker.isFile() || marker.text.trim() != 'PASS'
+            || (log.isFile() && log.text.contains('Exception stopping the server'))) {
+        throw new GradleException('Test server did not shut down cleanly; inspect its latest.log')
+    }
+}
 tasks.named('runGameTest', JavaExec) {
     jvmArgs '--enable-native-access=ALL-UNNAMED'
     systemProperty 'edb.test.stress', providers.gradleProperty('edbStress').orElse('false').get()
     systemProperty 'edb.test.profile', compatNames.isEmpty() ? 'vanilla' : compatNames.join(',')
-    doFirst { file('build/run/gameTest/edb-test-result.txt').delete() }
+    doFirst {
+        file('build/run/gameTest/edb-test-result.txt').delete()
+        file('build/run/gameTest/edb-shutdown-result.txt').delete()
+    }
     doLast {
         def result = file('build/run/gameTest/edb-test-result.txt')
         if (result.isFile() && result.text.startsWith('FAIL')) throw new GradleException(result.text)
+        verifyTestShutdown('gameTest')
     }
 }
 
@@ -101,16 +113,29 @@ tasks.named('runEdbDedicatedTest', JavaExec) {
             throw new GradleException('The isolated dedicated test server requires acceptance of the Minecraft EULA in build/run/edbDedicatedTest/eula.txt')
         }
         file('build/run/edbDedicatedTest/edb-test-result.txt').delete()
+        file('build/run/edbDedicatedTest/edb-shutdown-result.txt').delete()
         // A previous test may have saved its fixture entities, even when it failed.
         // Keep those worlds for inspection and give every invocation a fresh world.
         def propertiesFile = file('build/run/edbDedicatedTest/server.properties')
         def serverProperties = new Properties()
         if (propertiesFile.isFile()) propertiesFile.withInputStream { serverProperties.load(it) }
-        serverProperties.setProperty('level-name', 'edb-test-' + UUID.randomUUID().toString())
+        def worldName = 'edb-test-' + UUID.randomUUID().toString()
+        serverProperties.setProperty('level-name', worldName)
         propertiesFile.withOutputStream { serverProperties.store(it, 'Isolated EDB dedicated test') }
+        // BlueMap keeps its generated maps between runs. Point only auto-generated
+        // test-world entries at this run's fresh world, instead of rendering an old fixture.
+        def blueMapMaps = file('build/run/edbDedicatedTest/config/bluemap/maps')
+        if (compatNames.contains('bluemap') && blueMapMaps.isDirectory()) {
+            blueMapMaps.eachFileMatch(~/.*\.conf/) { config ->
+                config.text = config.readLines().collect { line ->
+                    line ==~ /world: "edb-test-[0-9a-f-]+"/ ? "world: \"${worldName}\"" : line
+                }.join('\n') + '\n'
+            }
+        }
     }
     doLast {
         def result = file('build/run/edbDedicatedTest/edb-test-result.txt')
         if (!result.isFile() || result.text.trim() != 'PASS') throw new GradleException("Dedicated test did not pass: ${result.isFile() ? result.text : 'no result'}")
+        verifyTestShutdown('edbDedicatedTest')
     }
 }

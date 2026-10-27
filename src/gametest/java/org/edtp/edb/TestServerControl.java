@@ -11,6 +11,10 @@ import java.nio.file.*;
 /** Wall-clock deadline also catches a failed maintenance state which deliberately stops game ticks. */
 public final class TestServerControl implements ModInitializer {
     public void onInitialize() {
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+            try { Files.writeString(Path.of("edb-shutdown-result.txt"), "PASS"); }
+            catch (java.io.IOException e) { throw new RuntimeException(e); }
+        });
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             boolean dedicated = Boolean.getBoolean("edb.test.dedicated");
             if (dedicated) {

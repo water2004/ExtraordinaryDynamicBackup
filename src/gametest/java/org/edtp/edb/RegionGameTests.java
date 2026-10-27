@@ -34,12 +34,13 @@ public class RegionGameTests {
     @GameTest(structure = "fabric-gametest-api-v1:empty", maxTicks = 1000000)
     public void loadedChunkRoundTrip(GameTestHelper test) {
         org.spongepowered.asm.mixin.MixinEnvironment.getCurrentEnvironment().audit();
+        org.edtp.edb.adaptors.entity_collision_optimizer.EcoLeaseProbe.run(test);
         org.edtp.edb.adaptors.bluemap.BlueMapProbe.awaitReady(test, () ->
             org.edtp.edb.adaptors.scalablelux.ScalableLuxProbe.run(test,
                 ChunkPos.unpack(ChunkPos.pack(test.absolutePos(new BlockPos(1, 2, 1)))), () ->
                     org.edtp.edb.adaptors.chunky.ChunkyProbe.run(test, test.getLevel(),
                         ChunkPos.unpack(ChunkPos.pack(test.absolutePos(new BlockPos(193, 2, 193)))),
-                        () -> loadedRoundTrip(test))));
+                        () -> CommandInteractionProbe.run(test, () -> loadedRoundTrip(test)))));
     }
     private void loadedRoundTrip(GameTestHelper test) {
         blockEntityAdapters(test);
@@ -72,7 +73,12 @@ public class RegionGameTests {
         level.getServer().schedule(new net.minecraft.server.TickTask(level.getServer().getTickCount(), () -> queued.set(true)));
         var compatibility = new CompatibilityProbes(test, chunk);
         service.requestBackup(name, selection, message -> {
-            if (message.startsWith("EDB: simulation")) compatibility.begin(chunk);
+            if (message.startsWith("EDB: simulation")) {
+                compatibility.begin(chunk);
+                // Exercise the maintenance command interceptor: OP 3 cannot queue stop.
+                level.getServer().getCommands().performPrefixedCommand(level.getServer().createCommandSourceStack()
+                        .withPermission(net.minecraft.server.permissions.LevelBasedPermissionSet.ADMIN), "stop");
+            }
             if (message.startsWith("Backup complete")) {
                 lighting[0] = org.edtp.edb.adaptors.scalablelux.ScalableLuxProbe.capture(level, pos);
                 observedAtCapture.set(queued.get() && asyncApplied.get());
@@ -331,7 +337,10 @@ public class RegionGameTests {
                     test.assertTrue(level.getChunkAt(pos) == before, "Invalid backup unloaded live chunks");
                     test.assertTrue(level.getBlockState(pos).is(Blocks.GOLD_BLOCK), "Invalid backup changed the world");
                     if (Boolean.getBoolean("edb.test.stress")) RegionStressTests.run(test);
-                    else C2meStorageProbe.probeSwallowedStorageFailure(test, test::succeed);
+                    else {
+                        org.edtp.edb.adaptors.entity_collision_optimizer.EcoLeaseProbe.assertIdle(test);
+                        C2meStorageProbe.probeSwallowedStorageFailure(test, test::succeed);
+                    }
                 });
             });
         });
