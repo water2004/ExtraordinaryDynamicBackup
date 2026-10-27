@@ -1,0 +1,14 @@
+operation,maintenance_frames,elapsed_ms,max_frame_ms
+loaded-backup-0,2259222,771,8
+loaded-restore-0,948707,715,13
+loaded-backup-1,2056409,674,6
+loaded-restore-1,529364,355,16
+loaded-backup-2,1983528,641,7
+loaded-restore-2,516615,308,11
+loaded-backup-3,1858334,573,6
+loaded-restore-3,518162,324,9
+loaded-backup-4,1986675,580,5
+loaded-restore-4,497299,349,15
+disk-backup-10000,71201026,19749,5
+disk-restore-10000,23490283,7891,8
+total,0,41724,0

@@ -24,6 +24,10 @@ Carpet Extra（gnembon 项目）与 Carpet Extra Extras 是不同项目。本次
 
 适配代码按模组放在 `src/main/java/org/edtp/edb/adaptors/<mod>/`；需要 Mixin 的放在各自的 `mixin/` 子目录，配置位于 `src/main/resources/adaptors/<mod>.mixins.json`。Carpet、TIS Addition、GCA、VMP 和 C2ME 有独立 Mixin 配置；Carpet Extra Extras、EntityCollisionOptimizer 与 Teleport Commands Fabric 使用适配器代码，不各自声明单独 Mixin 配置。
 
+## 地图渲染器的回档后刷新
+
+BlueMap 通过可选 API 对受影响的 MCA region 排入强制重绘；若其 API 尚未启用，EDB 保留请求并在 BlueMap 的 `onEnable` 回调提交。squaremap 通过自身 `CHUNK_CHANGED` 事件把受影响区块排入普通 dirty-chunk 队列，并在常规 `END_SERVER_TICK` 中每tick最多提交128个通知；是否运行后台绘图仍由 squaremap 的 `map.render.background.enabled` 设置决定。若关闭后台绘图，EDB 不会擅自启动渲染器；需要手动运行 squaremap 的 full-render 或 radius-render 命令刷新地图。
+
 “同时加载通过”只证明表中版本和实际场景。不同 additions 的每个规则、任意 Scarpet/其他模组脚本及任意第三方异步写世界代码均未获得无损保证。普通 LivingEntity 的全部瞬态状态没有被补齐；不保证任意实体或模组脚本在恢复后完整重演原时间线。
 
 假人回归覆盖 UUID、背包、生命值、饥饿值、经验、游戏模式、物品使用进度和 ActionPack 全部已记录字段。挂载用例包括单人载具、双假人同船、嵌套载具，以及 `[猪, 假人, 猪]` 的交错座位；断言直接载具 UUID 和乘客顺序。备份后把一个假人移出选区、另一个下线，并新增假人，恢复后分别找回、重建和删除。开启 TIS `fakePlayerTicksLikeRealPlayer`，验证 GCA 已下线假人的两个延迟钓鱼任务不会残留或重复。
@@ -101,3 +105,69 @@ gcFree 测试先在相应运行目录的 `config/c2me.toml` 中将 `[ioSystem]` 
 ```
 
 测试目录的 EULA 已由用户接受（`eula=true`）。Windows 发布目录的有界重试、GCA 已下线假人旧任务清理均包含在通过版本中。真实多人协议、极端光照/生成边界和进程崩溃仍在未验证范围内；后台存储错误探针不等同于整盘故障测试。
+
+## 常用服务端模组扩展
+
+新增的固定发行包仍仅用于测试，不打入 EDB。需要专用处理的代码均在 `adaptors/<mod>/`，没有为仅需原版序列化的模组增加空适配器。
+
+| 模组及固定版本 | 处理与验证内容 |
+| --- | --- |
+| ServerCore 1.5.20+26.3 | 恢复后使下一次正常区块 tick 重建缓存。其区块列表每 20 tick 刷新，不能继续使用旧 LevelChunk；探针故意设置未到刷新时刻的缓存窗口。关闭 `cache-ticking-chunks` 时不访问不存在的字段。 |
+| Servux 0.12.2 | 调度器随完整 tickServer 一起暂停。编辑任务保留实体迭代器，存在活动或待启动任务时拒绝回档，要求先完成编辑；不取消任务。验证备份期间任务不执行、恢复运行后继续，以及拒绝回档不改变区块。 |
+| Async 0.2.5+alpha-26.3 | 追踪跨 tick 的 BACKGROUND 刷怪工作直到执行结束；使用真实并发方块事件队列，保留重复项及顺序；实体开始 ticking 时补充恢复排序标志。测试开启 `enableAsyncSpawn`，通过真实 executor 延迟任务验证 SETTLE 等待。 |
+| ScalableLux 0.3.0-alpha.0.6+26.3 | 原 `syncFuture` 只查队列，会漏掉已取出、仍执行的任务。适配计数覆盖准入、排队、执行、完成回调及异常。真实 worker 挂起探针验证屏障不会提前完成，回档后检查光照值和数组换新。 |
+| Chunky 1.5.3 | 有活动预生成或尚未完成的请求时拒绝启动 EDB；维护期间新 worker/读盘/加载请求延后，结束后继续。回档后原地清除目标维度生成缓存，保留 task 所持 WorldState 对象。trim 与维护互斥，执行过 trim 后按 Chunky 原有要求重启再使用 EDB。真实 FabricWorld 接口验证请求等待、票据清理与缓存失效。 |
+| BlueMap 5.29 | 回档成功后经官方 API 对目标 MCA regions 请求强制重绘，按当前 ServerLevel 对应的完整 world ID 匹配。初始化未完成时保留请求。探针检查实际渲染队列中目标区域的 `force_all` 任务；去重后的请求不要求新增队列条目。 |
+| squaremap 1.4.3 | 回档后按正常 tick 分批发送 CHUNK_CHANGED，每 tick 最多 128 块。验证真实 dirty set；关闭后台渲染时遵循配置，需要自行执行地图 render。 |
+| Clumps 26.3.2 | 原版实体 NBT 已包含混合经验值映射。用真实 award 合并出 `{3:2,7:3,17:4}`（95 XP），修改后回档验证映射、总经验及新实体，无额外保存格式。 |
+| Alternate Current 1.9.0 | 更新队列同步处理，无额外世界后台队列。实际红石线路验证回档后拓扑、电平和再次通断。 |
+| WorldEdit 7.4.6 | 原版发行包在命令结束关闭 EditSession 并同步提交；底层每次写入重新取当前区块。实际 EditSession 验证备份前和回档后写入新区块，不清除用户剪贴板、选区或 undo。第三方异步扩展另行核查。 |
+| LuckPerms 5.5.85 | 不回滚权限数据库。Carpet 假人直接 placeNewPlayer 会绕过 prelogin；恢复假人前通过官方 loadUser API 异步预载权限，未完成时返回下一维护帧，不阻塞主线程。测试玩家创建也补齐 prelogin 数据。 |
+| Ledger 1.3.25 | 内建 rollback/restore 通过 server.execute 修改世界，沿用现有主任务屏障；后台数据库日志不属于区域快照，不删除历史记录。依赖的 Fabric Language Kotlin 仅在测试运行时加载，EDB 源码仍为 Java。 |
+| Debugify 26.3.0.0 | MC-224729 改变保存条件但不新增世界写入线程，沿用 holder/storage 等待；MC-89146 的方块实体容器仍走正常序列化和恢复排序。 |
+| FerriteCore 9.0.0 / Krypton 0.3.2 | 分别优化内存结构、网络管线；不新增区域存档数据。不冻结 Netty，维护期间继续连接保活。 |
+| spark 1.10.187 | 采样和统计不改变区域状态。维护时主线程统计请求可能超时，属于观察工具超时，不代表快照失败；不发布或上传测试 profile。 |
+| Syncmatica 0.3.20 | 同步建筑文件及元数据，未发现独立世界写入路径。placements、传输进度不纳入区域快照。 |
+| Simple Voice Chat 2.6.26+26.3 | 内建 UDP 处理会读玩家位置及发送音频，没有直接写区域 NBT 的路径。仅在专用服测试中用 loopback 绑定；不把加载成功等同于真实客户端持续通话测试。第三方语音插件回调不在此结论内。 |
+| FabricProxy-Lite 2.12.0 | forwarding 的服务端处理经 server.submit，维护期间遵循主任务门控。未验证真实 Velocity 握手、转服或多客户端重连。 |
+
+Servux 的客户端结构框缓存不是世界存档；其现有发包接口不能可靠清除已消失的结构框，因此不伪造清空包，也不保证回档后立即刷新 MiniHUD 展示。地图适配测试检查刷新请求与队列，没有逐像素验证最终瓦片。
+
+常态开销集中在确实需要异步屏障的路径：Async 按后台批次计数，ScalableLux 在光照入队与完成时计数，Chunky 在任务及异步加载时计数和检查准入。这些计数在未进行备份时也存在，用来辨认维护开始前已经提交的工作；不做逐 tick 世界历史记录。ServerCore、权限预加载及地图通知主要在回档时执行。本次没有进行独立吞吐基准测试，不宣称这些挂钩开销为零。
+
+上述结论依据各项目原始源码和锁定 jar 字节码核对：[ServerCore](https://github.com/Wesley1808/ServerCore)、[Servux](https://github.com/sakura-ryoko/servux)、[Async](https://github.com/AxalotLDev/Async)、[ScalableLux](https://github.com/RelativityMC/ScalableLux)、[Chunky](https://github.com/pop4959/Chunky)、[BlueMap](https://github.com/BlueMap-Minecraft/BlueMap)、[squaremap](https://github.com/jpenilla/squaremap)、[WorldEdit](https://github.com/EngineHub/WorldEdit)、[LuckPerms](https://github.com/LuckPerms/LuckPerms)、[Ledger](https://github.com/QuiltServerTools/Ledger)。下载地址、版本 ID 和校验值见 lock 文件；本地研究副本不随项目提交。
+
+Moonrise 1.2.1+e53de7f 确有 26.3 版本，但替换了区块系统，并使原版光照等待接口抛 UnsupportedOperationException，且发行包明确与 C2ME 冲突。当前不支持 Moonrise，不能使用同一 C2ME 测试结果推断兼容。ModernFix、Noisium、Carpet Extra 此次未取得对应 26.3 Fabric 发行包，不以旧版包推断兼容。
+
+### 扩展组合实测结果
+
+以下结果对应实现提交 `8a69c66`；全部使用上表及 lock 中固定版本。组合名单同时存于 CSV 旁的 `.profile.txt`，避免将间接依赖计为独立适配实现。
+
+| 场景 | 结果 |
+| --- | --- |
+| 30 个测试依赖同进程，GameTest 完整压力测试 | PASS；包含前述专用探针、256 块/1,024 实体五轮、10,000 个存盘未加载区块，以及原有假人/载具/C2ME 后台错误探针。 |
+| 增加 Simple Voice Chat 的 31 依赖专用服组合 | PASS；`max-tick-time=10000`，未关闭 watchdog，结果文件为 PASS。语音绑定 127.0.0.1，两个地图 webserver 关闭。 |
+| 纯 Fabric 基础回归 | PASS；包含 100×100 混合已存在/缺失记录选区。 |
+| ServerCore 缓存关闭 + ScalableLux，无 C2ME | PASS；验证可选缓存关闭分支及原版区块调度器下的光照屏障。 |
+
+扩展组合开启 C2ME gcFree serializer、Async 后台刷怪，ServerCore 缓存开启。GameTest 排除 Simple Voice Chat，因为它在非 DedicatedServer 上不使用配置的绑定地址；语音加载与玩家生命周期在专用服组合中验证。没有使用真实语音客户端，也没有声称真实代理转服协议已覆盖。
+
+原始指标：[GameTest](../tests/results/26.3-expanded-mods-gametest.csv)、[专用服](../tests/results/26.3-expanded-mods-dedicated.csv)。专用服 10,000 条地形记录备份 **34.831 秒**、恢复 **98.690 秒**，压力阶段最长维护帧 **17 ms**，整轮包括准备/基础探针的最长维护帧 **64 ms**。整服模拟在维护期间暂停。这些是本机回归观测，不是停顿时长保证；部分独立回归同时运行，不作吞吐性能对比。
+
+复现扩展组合：
+
+```powershell
+$env:TEMP='D:\Temp'; $env:TMP='D:\Temp'
+.\scripts\prepare-compat.ps1
+.\scripts\prepare-expanded-test.ps1
+$all=(Get-Content tests/compatibility-lock.json -Raw | ConvertFrom-Json).mods.PSObject.Properties.Name
+$game=($all | Where-Object { $_ -ne 'simple-voice-chat' }) -join ','
+# 按上文设置测试目录中的 C2ME gcFreeChunkSerializer=true。
+# 接受 Mojang EULA 后，在各测试目录 config/bluemap/core.conf 设置 accept-download:true。
+.\gradlew.bat build runGameTest "-PedbCompat=$game" -PedbStress=true --console=plain
+.\scripts\prepare-dedicated-test.ps1
+# 测试专用服 eula.txt 同样需要 eula=true。
+.\gradlew.bat runEdbDedicatedTest "-PedbCompat=$($all -join ',')" --console=plain
+```
+
+测试日志中的拒绝活跃 Servux 编辑、拒绝玩家进入恢复区、拒绝损坏快照及 C2ME 注入存储错误属于预期负向场景。spark 在长维护期间的世界统计请求可能超时；Windows OSHI 性能计数器告警及部分第三方 Mixin audit 的重复加载提示不等于测试失败，最终以 GameTest/专用服结果和断言为准。

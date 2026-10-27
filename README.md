@@ -41,6 +41,8 @@ Minecraft **26.3** 的 Fabric 区域热备份、热恢复原型。Java 25，包�
 
 C2ME 适配已通过特定 26.3 版本的 GameTest 场景，包括 C2ME 单独的未加载区块压力场景和 11 模组组合；维护期间通过 scheduler/NoTickVD 屏障静置，暂存区域 root tickets 后让 C2ME 自己降级，并检查其异步存储错误。细节和限制见[兼容性记录](docs/compatibility-26.3.md)。这不是对任意 C2ME 配置或所有第三方任务的无损保证。Carpet fake player 的 ActionPack NBT、动作进度、车辆 UUID 和座位顺序有专门往返覆盖；普通 LivingEntity 的全部瞬态状态及任意模组脚本仍不保证完整重演。VMP 的可选异步命令开关 `use_async_chunks_on_some_commands` 目前也必须关闭（默认关闭）。恢复会取消目标维度玩家的待处理 TPC Wild 搜索并释放其区块票据，避免沿用旧世界的候选位置；普通备份不取消这些请求。
 
+常用服务端组合另覆盖 ServerCore、Servux、Async、ScalableLux、Chunky、BlueMap、squaremap、Clumps、Alternate Current、WorldEdit、LuckPerms 等。适配器按模组分目录；完整版本、实际测试范围和限制见[兼容性记录](docs/compatibility-26.3.md#常用服务端模组扩展)。Chunky 正在预生成、Servux 尚有编辑任务时需先完成相应任务再回档；Moonrise 当前不支持。
+
 ## 在 IntelliJ IDEA 中打开
 
 1. 选择 Open，打开本项目目录，按 Gradle 项目导入。
