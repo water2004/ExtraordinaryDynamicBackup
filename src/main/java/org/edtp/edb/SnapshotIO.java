@@ -9,7 +9,10 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.storage.LevelResource;
 
 import java.io.IOException;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
@@ -22,6 +25,7 @@ public final class SnapshotIO {
     public static final int FORMAT = 1;
     private static final Pattern NAME = Pattern.compile("[a-zA-Z0-9_-]{1,64}");
     private static final long MAX_NBT_BYTES = 64L * 1024 * 1024;
+    private static final int PUBLISH_MOVE_ATTEMPTS = 5;
     private SnapshotIO() {}
 
     public record Metadata(RegionSelection region, String worldId, long gameTime, int dataVersion) {
@@ -83,7 +87,28 @@ public final class SnapshotIO {
         if (runtime.sizeInBytes() > MAX_NBT_BYTES) throw new IOException("Runtime metadata exceeds snapshot NBT limit");
         NbtIo.writeCompressed(runtime, staging.resolve("runtime.nbt"));
         NbtIo.writeCompressed(metadata.encode(), staging.resolve("manifest.nbt"));
-        Files.move(staging, destination, StandardCopyOption.ATOMIC_MOVE);
+        movePublishedDirectory(staging, destination);
+    }
+    /** Called by RegionBackupService.supply on its edb-snapshot-io executor; never blocks a server frame. */
+    private static void movePublishedDirectory(Path staging, Path destination) throws IOException {
+        long delayMillis = 50;
+        for (int attempt = 1; ; attempt++) {
+            if (Files.exists(destination, LinkOption.NOFOLLOW_LINKS)) throw new FileAlreadyExistsException(destination.toString());
+            try {
+                Files.move(staging, destination, StandardCopyOption.ATOMIC_MOVE);
+                return;
+            } catch (AccessDeniedException denied) {
+                if (attempt >= PUBLISH_MOVE_ATTEMPTS) throw denied;
+                try {
+                    Thread.sleep(delayMillis);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    denied.addSuppressed(interrupted);
+                    throw denied;
+                }
+                delayMillis *= 2;
+            }
+        }
     }
     public static Metadata readMetadata(Path directory, String worldId) throws IOException {
         CompoundTag tag = NbtIo.readCompressed(directory.resolve("manifest.nbt"), NbtAccounter.create(1024 * 1024));
