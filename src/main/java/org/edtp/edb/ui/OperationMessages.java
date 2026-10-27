@@ -20,9 +20,12 @@ public final class OperationMessages {
         return 0;
     }
     public static String region(RegionSelection region) {
-        return region.dimension() + " | 方块 X/Z (" + region.minX() * 16 + ", " + region.minZ() * 16 + ") → (" + (region.maxX() * 16 + 15) + ", " + (region.maxZ() * 16 + 15)
-                + ") | 区块 (" + region.minX() + ", " + region.minZ() + ") → (" + region.maxX() + ", " + region.maxZ()
-                + ")，共 " + region.size() + " 个，全部高度";
+        var bounds = region.blocks();
+        String box = bounds.fullHeight() ? "方块 X/Z (" + bounds.minX() + ", " + bounds.minZ() + ") → (" + bounds.maxX() + ", " + bounds.maxZ() + ")，全部高度"
+            : "方块 XYZ (" + bounds.minX() + ", " + bounds.minY() + ", " + bounds.minZ() + ") → (" + bounds.maxX() + ", " + bounds.maxY() + ", " + bounds.maxZ() + ")";
+        return region.dimension() + " | " + box
+                + " | 区块 (" + region.minX() + ", " + region.minZ() + ") → (" + region.maxX() + ", " + region.maxZ()
+                + ")，涉及 " + region.size() + " 个";
     }
     public static String progressText(Progress progress) {
         String phase = switch (progress.phase()) {
@@ -33,6 +36,8 @@ public final class OperationMessages {
             case "LIGHT" -> "等待光照计算";
             case "CAPTURE" -> "读取并保存区块";
             case "VALIDATE" -> "校验备份完整性";
+            case "PRESERVE" -> "暂存边界区块当前数据";
+            case "CLEANUP" -> "清理合并临时文件";
             case "MASK" -> "准备卸载选区";
             case "UNLOAD" -> "卸载区块";
             case "DRAIN" -> "等待存储任务结束";
@@ -44,7 +49,7 @@ public final class OperationMessages {
             case "FAILED" -> "操作失败，模拟保持暂停；请检查日志";
             default -> progress.phase();
         };
-        boolean counted = switch (progress.phase()) { case "SETTLE", "LIGHT", "CAPTURE", "VALIDATE", "APPLY", "UNMASK" -> true; default -> false; };
+        boolean counted = switch (progress.phase()) { case "SETTLE", "LIGHT", "CAPTURE", "VALIDATE", "PRESERVE", "APPLY", "UNMASK" -> true; default -> false; };
         return (progress.restore() ? "恢复 " : "备份 ") + progress.name() + "：" + phase
                 + (counted && progress.total() > 0 ? "（本阶段 " + progress.processed() + "/" + progress.total() + " 区块）" : "")
                 + "，已用 " + progress.elapsedSeconds() + " 秒";

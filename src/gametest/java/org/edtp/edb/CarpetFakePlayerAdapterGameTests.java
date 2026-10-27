@@ -42,17 +42,22 @@ public final class CarpetFakePlayerAdapterGameTests {
 
     /** Creates two fakes on one boat, one fake on its own boat, and one fake in a nested vehicle tree. */
     public static Fixture setup(ServerLevel level, BlockPos origin) {
-        try { return setupChecked(level, origin); }
+        return setup(level, origin, false);
+    }
+    public static Fixture setup(ServerLevel level, BlockPos origin, boolean precise) {
+        try { return setupChecked(level, origin, precise); }
         catch (Exception exception) { throw new IllegalStateException("Could not construct Carpet fake-player fixture", exception); }
     }
 
-    private static Fixture setupChecked(ServerLevel level, BlockPos origin) throws Exception {
+    private static Fixture setupChecked(ServerLevel level, BlockPos origin, boolean precise) throws Exception {
         if (!net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("carpet"))
             throw new IllegalStateException("Carpet is required for this fixture");
         if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("carpet-tis-addition"))
             Class.forName("carpettisaddition.CarpetTISAdditionSettings").getField("fakePlayerTicksLikeRealPlayer").setBoolean(null, true);
         ChunkPos chunk = ChunkPos.unpack(ChunkPos.pack(origin));
-        RegionSelection region = RegionSelection.of(level.dimension().identifier().toString(), chunk.x(), chunk.z(), chunk.x(), chunk.z());
+        RegionSelection region = precise
+                ? RegionSelection.fromBox(level.dimension().identifier().toString(), chunk.getMinBlockX(), origin.getY() - 8, chunk.getMinBlockZ(), chunk.getMaxBlockX(), origin.getY() + 16, chunk.getMaxBlockZ())
+                : RegionSelection.of(level.dimension().identifier().toString(), chunk.x(), chunk.z(), chunk.x(), chunk.z());
         Entity sharedBoat = createEntity(level, EntityTypes.OAK_BOAT, origin.offset(2, 0, 2));
         Entity soloBoat = createEntity(level, EntityTypes.OAK_BOAT, origin.offset(5, 0, 2));
         Entity nestedRoot = createEntity(level, EntityTypes.OAK_BOAT, origin.offset(8, 0, 2));

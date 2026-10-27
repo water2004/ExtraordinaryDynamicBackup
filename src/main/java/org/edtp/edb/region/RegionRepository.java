@@ -23,7 +23,7 @@ public final class RegionRepository {
         if (Files.size(file) > 1024 * 1024) throw new IOException("Region definitions exceed 1 MiB");
         try {
             var json = JsonParser.parseString(Files.readString(file)).getAsJsonObject();
-            if (integer(json, "format") != 1) throw new IOException("Unsupported region definition format");
+            if (integer(json, "format") != 2) throw new IOException("Unsupported region definition format");
             var entries = json.getAsJsonObject("regions");
             if (entries.size() > 1024) throw new IOException("At most 1024 named regions");
             for (var entry : entries.entrySet()) {
@@ -31,8 +31,10 @@ public final class RegionRepository {
                 var region = entry.getValue().getAsJsonObject();
                 String dimension = region.get("dimension").getAsString();
                 if (net.minecraft.resources.Identifier.tryParse(dimension) == null) throw new IllegalArgumentException("Invalid dimension");
+                var blocks = region.getAsJsonObject("blocks");
                 regions.put(entry.getKey(), new RegionSelection(dimension, integer(region, "minX"), integer(region, "minZ"),
-                        integer(region, "maxX"), integer(region, "maxZ")));
+                        integer(region, "maxX"), integer(region, "maxZ"), new RegionSelection.Bounds(integer(blocks, "minX"), integer(blocks, "minY"), integer(blocks, "minZ"),
+                        integer(blocks, "maxX"), integer(blocks, "maxY"), integer(blocks, "maxZ"))));
             }
             return regions;
         } catch (RuntimeException e) { throw new IOException("Invalid regions.json; definitions were not modified", e); }
@@ -70,7 +72,7 @@ public final class RegionRepository {
     private void save(Map<String, RegionSelection> regions) throws IOException {
         var gson = new GsonBuilder().setPrettyPrinting().create();
         var json = new JsonObject();
-        json.addProperty("format", 1);
+        json.addProperty("format", 2);
         json.add("regions", gson.toJsonTree(regions));
         Files.createDirectories(file.getParent());
         Path temporary = Files.createTempFile(file.getParent(), ".regions-", ".tmp");

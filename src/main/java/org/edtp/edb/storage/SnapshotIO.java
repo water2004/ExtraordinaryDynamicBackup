@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
 
 /** Filesystem-only code: safe to call on the operation's bounded IO executor. */
 public final class SnapshotIO {
-    public static final int FORMAT = 1;
+    public static final int FORMAT = 2;
     private static final Pattern NAME = Pattern.compile("[a-zA-Z0-9_-]{1,64}");
     private static final long MAX_NBT_BYTES = 64L * 1024 * 1024;
     private static final int PUBLISH_MOVE_ATTEMPTS = 5;
@@ -49,6 +49,7 @@ public final class SnapshotIO {
             tag.putString("dimension", region.dimension());
             tag.putInt("min_x", region.minX()); tag.putInt("min_z", region.minZ());
             tag.putInt("max_x", region.maxX()); tag.putInt("max_z", region.maxZ());
+            tag.put("blocks", region.blocks().encode());
             tag.putLong("game_time", gameTime);
             tag.putLong("created_at", createdAt);
             tag.putString("comment", comment);
@@ -77,6 +78,26 @@ public final class SnapshotIO {
         if (region == null) return root;
         validateName(region);
         return root.resolve("regions").resolve(region);
+    }
+    /** Only private merge workspaces directly under this world's EDB root may be discarded. */
+    public static void discardMerge(Path root, Path directory) throws IOException {
+        Path base = root.toAbsolutePath().normalize(), target = directory.toAbsolutePath().normalize();
+        if (!target.getParent().equals(base) || !target.getFileName().toString().startsWith(".merge-") || Files.isSymbolicLink(target)
+                || !target.toRealPath().getParent().equals(base.toRealPath())) throw new IOException("Unsafe merge workspace: " + target);
+        Path real = target.toRealPath();
+        Files.walkFileTree(target, new java.nio.file.SimpleFileVisitor<>() {
+            @Override public java.nio.file.FileVisitResult preVisitDirectory(Path path, java.nio.file.attribute.BasicFileAttributes attrs) throws IOException {
+                if (!path.toRealPath().equals(real.resolve(target.relativize(path)))) throw new IOException("Linked merge directory: " + path);
+                return java.nio.file.FileVisitResult.CONTINUE;
+            }
+            @Override public java.nio.file.FileVisitResult visitFile(Path path, java.nio.file.attribute.BasicFileAttributes attrs) throws IOException {
+                Files.delete(path); return java.nio.file.FileVisitResult.CONTINUE;
+            }
+            @Override public java.nio.file.FileVisitResult postVisitDirectory(Path path, IOException failure) throws IOException {
+                if (failure != null) throw failure;
+                Files.delete(path); return java.nio.file.FileVisitResult.CONTINUE;
+            }
+        });
     }
     public static void validateComment(String comment) {
         if (comment == null || comment.length() > 256 || comment.codePoints().anyMatch(Character::isISOControl))
@@ -145,7 +166,7 @@ public final class SnapshotIO {
             throw new IOException("Backup data version does not match this server");
         RegionSelection region = new RegionSelection(tag.getString("dimension").orElseThrow(),
                 tag.getInt("min_x").orElseThrow(), tag.getInt("min_z").orElseThrow(),
-                tag.getInt("max_x").orElseThrow(), tag.getInt("max_z").orElseThrow());
+                tag.getInt("max_x").orElseThrow(), tag.getInt("max_z").orElseThrow(), RegionSelection.Bounds.decode(tag.getCompound("blocks").orElseThrow()));
         if (tag.getIntOr("chunks", -1) != region.size()) throw new IOException("Incomplete chunk manifest");
         return new Metadata(region, worldId, tag.getLong("game_time").orElseThrow(), tag.getInt("data_version").orElseThrow(), tag.getLongOr("created_at", 0), tag.getStringOr("comment", ""));
     }

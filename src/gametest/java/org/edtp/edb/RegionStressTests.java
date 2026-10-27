@@ -158,7 +158,68 @@ final class RegionStressTests {
                 test.assertTrue(futures.get(i - offset).join().orElseThrow().getIntOr("edb_stress", -2) == i, "Disk chunk mismatch " + i);
                 test.assertTrue(org.edtp.edb.adaptors.ModCompatibility.chunks(level).edb$holder(disk.at(i).pack()) == null, "Disk stress loaded terrain");
             }
-            if (end < disk.size()) verifyDisk(end); else complete();
+            if (end < disk.size()) verifyDisk(end); else exactDisk();
+        });
+    }
+    private void exactDisk() {
+        var first = disk.at(0); var last = disk.at(disk.size() - 1);
+        var selection = RegionSelection.fromBox(disk.dimension(), first.getMinBlockX(), 5, first.getMinBlockZ(), last.getMaxBlockX(), 10, last.getMaxBlockZ());
+        String name = "exact_populated_" + UUID.randomUUID().toString().replace("-", "");
+        seedUniform(0, false, () -> {
+            service.requestBackup(name, selection, text -> { if (text.startsWith("Backup complete")) measure("disk-exact-backup-10000"); });
+            test.runAfterDelay(2, () -> {
+                test.assertTrue(service.status().startsWith("Backup complete"), service.status());
+                seedUniform(0, true, () -> {
+                    service.requestRestore(name, text -> { if (text.startsWith("Restore complete")) measure("disk-exact-restore-10000"); });
+                    test.runAfterDelay(2, () -> {
+                        test.assertTrue(service.status().startsWith("Restore complete"), service.status());
+                        verifyExact(0);
+                    });
+                });
+            });
+        });
+    }
+    private void seedUniform(int offset, boolean changed, Runnable next) {
+        int end = Math.min(disk.size(), offset + 64); var writes = new ArrayList<CompletableFuture<?>>();
+        for (int i = offset; i < end; i++) {
+            var pos = disk.at(i); var tag = template.copy();
+            tag.putInt("xPos", pos.x()); tag.putInt("zPos", pos.z()); tag.putInt("edb_stress", changed ? -1 : i);
+            tag.remove("Heightmaps"); tag.putBoolean("isLightOn", false);
+            for (var raw : tag.getListOrEmpty("sections")) {
+                var section = (CompoundTag) raw; var palette = new net.minecraft.nbt.ListTag();
+                palette.add(net.minecraft.nbt.StringTag.valueOf(changed ? "minecraft:gold_block" : "minecraft:stone"));
+                var states = new CompoundTag(); states.put("palette", palette); section.put("block_states", states);
+                section.remove("BlockLight"); section.remove("SkyLight");
+            }
+            writes.add(level.getChunkSource().chunkMap.write(pos, tag));
+        }
+        after(CompletableFuture.allOf(writes.toArray(CompletableFuture[]::new)), () -> {
+            if (end < disk.size()) seedUniform(end, changed, next); else next.run();
+        });
+    }
+    private void verifyExact(int offset) {
+        int end = Math.min(disk.size(), offset + 64); var reads = new ArrayList<CompletableFuture<Optional<CompoundTag>>>();
+        for (int i = offset; i < end; i++) reads.add(level.getChunkSource().chunkMap.read(disk.at(i)));
+        var codec = level.palettedContainerFactory().blockStatesContainerCodec();
+        // Bulk fixture decoding is test work, not server simulation or an EDB maintenance frame.
+        var decoded = CompletableFuture.allOf(reads.toArray(CompletableFuture[]::new)).thenRunAsync(() -> {
+            for (int i = offset; i < end; i++) {
+                var terrain = reads.get(i - offset).join().orElseThrow();
+                var sections = terrain.getListOrEmpty("sections").compoundStream().toList();
+                var inside = sections.stream().filter(t -> t.getIntOr("Y", -1000) == 0).findFirst().orElseThrow();
+                var outside = sections.stream().filter(t -> t.getIntOr("Y", -1000) == 1).findFirst().orElseThrow();
+                var selected = codec.parse(net.minecraft.nbt.NbtOps.INSTANCE, inside.getCompoundOrEmpty("block_states")).getOrThrow();
+                var kept = codec.parse(net.minecraft.nbt.NbtOps.INSTANCE, outside.getCompoundOrEmpty("block_states")).getOrThrow();
+                test.assertTrue(selected.get(8, 6, 8).is(Blocks.STONE), "10k XYZ selected block mismatch " + i);
+                test.assertTrue(selected.get(8, 11, 8).is(Blocks.GOLD_BLOCK) && kept.get(8, 4, 8).is(Blocks.GOLD_BLOCK), "10k XYZ outside Y changed " + i);
+                test.assertTrue(terrain.getIntOr("edb_stress", -2) == -1, "10k XYZ chunk-wide current metadata rolled back " + i);
+            }
+        });
+        after(decoded, () -> {
+            for (int i = offset; i < end; i++) test.assertTrue(org.edtp.edb.adaptors.ModCompatibility.chunks(level).edb$holder(disk.at(i).pack()) == null, "10k XYZ loaded terrain " + i);
+            if (offset % 1024 == 0) com.mojang.logging.LogUtils.getLogger().info("EDB XYZ verification {}/10000", end);
+            if (end < disk.size()) verifyExact(end);
+            else { com.mojang.logging.LogUtils.getLogger().info("EDB verified exact XYZ merge across 10,000 unloaded populated chunks"); complete(); }
         });
     }
     private void measure(String operation) {

@@ -85,8 +85,8 @@ public final class CarpetFakePlayerAdapter {
         for (ServerPlayer player : players) {
             if (player.level() != level || !isFake(player)) continue;
             Entity root = player.getRootVehicle();
-            boolean playerInRegion = region.contains(player.chunkPosition());
-            boolean rootInRegion = region.contains(root.chunkPosition());
+            boolean playerInRegion = region.contains(player.blockPosition());
+            boolean rootInRegion = region.contains(root.blockPosition());
             if (playerInRegion && !rootInRegion)
                 throw new IllegalStateException("Carpet fake player is inside the selection while its vehicle root is outside: " + player.getUUID());
             if (!rootInRegion) continue;
@@ -105,6 +105,7 @@ public final class CarpetFakePlayerAdapter {
         entry.putString("dimension", level.dimension().identifier().toString());
         entry.putLong("player_chunk", player.chunkPosition().pack());
         entry.putLong("root_chunk", player.getRootVehicle().chunkPosition().pack());
+        entry.putLong("root_pos", player.getRootVehicle().blockPosition().asLong());
         entry.putBoolean("shadow", readShadow(player));
         Entity vehicle = player.getVehicle();
         if (vehicle != null) {
@@ -149,7 +150,8 @@ public final class CarpetFakePlayerAdapter {
             if (!level.dimension().identifier().toString().equals(entry.getString("dimension").orElseThrow()))
                 throw new IllegalArgumentException("Fake player belongs to a different dimension: " + name);
             ChunkPos rootChunk = ChunkPos.unpack(entry.getLongOr("root_chunk", Long.MIN_VALUE));
-            if (!region.contains(rootChunk))
+            BlockPos rootPos = BlockPos.of(entry.getLong("root_pos").orElseThrow());
+            if (!region.contains(rootPos) || !ChunkPos.containing(rootPos).equals(rootChunk))
                 throw new IllegalArgumentException("Fake player is outside the snapshot selection: " + name);
             CompoundTag data = entry.getCompound("player_data").orElseThrow(() -> new IllegalArgumentException("Fake-player data missing: " + name));
             Optional<String> vehicleId = entry.getString("vehicle_uuid");
@@ -165,6 +167,7 @@ public final class CarpetFakePlayerAdapter {
             var pos = data.read("Pos", net.minecraft.world.phys.Vec3.CODEC).orElseThrow(() -> new IllegalArgumentException("Fake-player position missing: " + name));
             if (!Double.isFinite(pos.x()) || !Double.isFinite(pos.y()) || !Double.isFinite(pos.z()))
                 throw new IllegalArgumentException("Fake-player position is invalid: " + name);
+            if (!region.contains(BlockPos.containing(pos))) throw new IllegalArgumentException("Fake player outside exact selection: " + name);
             ChunkPos playerChunk = ChunkPos.unpack(entry.getLongOr("player_chunk", Long.MIN_VALUE));
             if (!ChunkPos.containing(BlockPos.containing(pos)).equals(playerChunk))
                 throw new IllegalArgumentException("Fake-player chunk metadata does not match player NBT: " + name);
@@ -193,7 +196,7 @@ public final class CarpetFakePlayerAdapter {
             if (!isFake(player)) continue;
             Entity root = player.getRootVehicle();
             if (player.getUUID() != null && snapshotIds.contains(player.getUUID())
-                    || player.level() == level && (region.contains(player.chunkPosition()) || region.contains(root.chunkPosition())))
+                    || player.level() == level && (region.contains(player.blockPosition()) || region.contains(root.blockPosition())))
                 removal.add(player);
         }
         removal.sort(Comparator.comparing(player -> player.getUUID().toString()));

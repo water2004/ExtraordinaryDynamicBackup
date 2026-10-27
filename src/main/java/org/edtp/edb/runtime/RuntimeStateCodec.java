@@ -55,7 +55,7 @@ public final class RuntimeStateCodec {
         CompoundTag result = new CompoundTag();
         ListTag events = new ListTag();
         for (BlockEventData event : ((RegionAccess.Level) level).edb$events()) {
-            if (!region.contains(ChunkPos.pack(event.pos()))) continue;
+            if (!region.contains(event.pos())) continue;
             CompoundTag tag = new CompoundTag();
             tag.putLong("pos", event.pos().asLong());
             tag.putString("block", BuiltInRegistries.BLOCK.getKey(event.block()).toString());
@@ -67,13 +67,13 @@ public final class RuntimeStateCodec {
     }
     public static void restoreEvents(ServerLevel level, RegionSelection region, CompoundTag runtime) {
         Collection<BlockEventData> events = ((RegionAccess.Level) level).edb$events();
-        events.removeIf(e -> region.contains(ChunkPos.pack(e.pos())));
+        events.removeIf(e -> region.contains(e.pos()));
         for (Tag raw : runtime.getListOrEmpty("events")) {
             CompoundTag tag = (CompoundTag) raw;
             var id = Identifier.parse(tag.getString("block").orElseThrow());
             if (!BuiltInRegistries.BLOCK.containsKey(id)) throw new IllegalArgumentException("Unknown event block: " + id);
             BlockPos pos = BlockPos.of(tag.getLong("pos").orElseThrow());
-            if (!region.contains(ChunkPos.pack(pos))) throw new IllegalArgumentException("Event outside region");
+            if (!region.contains(pos)) throw new IllegalArgumentException("Event outside region");
             events.add(new BlockEventData(pos, BuiltInRegistries.BLOCK.getValue(id), tag.getIntOr("a", 0), tag.getIntOr("b", 0)));
         }
     }
@@ -82,7 +82,7 @@ public final class RuntimeStateCodec {
             CompoundTag tag = (CompoundTag) raw;
             if (!BuiltInRegistries.BLOCK.containsKey(Identifier.parse(tag.getString("block").orElseThrow())))
                 throw new IllegalArgumentException("Unknown block event type");
-            if (!region.contains(ChunkPos.pack(BlockPos.of(tag.getLong("pos").orElseThrow()))))
+            if (!region.contains(BlockPos.of(tag.getLong("pos").orElseThrow())))
                 throw new IllegalArgumentException("Block event outside selected region");
         }
     }

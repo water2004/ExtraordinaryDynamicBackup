@@ -69,24 +69,28 @@ public final class BackupCommands {
         return argument("id", LongArgumentType.longArg(1)).suggests((c, b) -> catalog(c.getSource()).submit(() -> catalog(c.getSource()).backups.list(owner(c)))
                 .thenCompose(entries -> SharedSuggestionProvider.suggest(entries.stream().map(BackupRepository.Entry::id).toList(), b)));
     }
-    private static RequiredArgumentBuilder<CommandSourceStack, Integer> coordinates(com.mojang.brigadier.Command<CommandSourceStack> command) {
-        return argument("x1", IntegerArgumentType.integer()).then(argument("z1", IntegerArgumentType.integer())
-            .then(argument("x2", IntegerArgumentType.integer()).then(argument("z2", IntegerArgumentType.integer())
-                .executes(c -> {
-                    try { return command.run(c); } catch (Exception error) { return error(c.getSource(), error); }
-                }))));
+    private static RequiredArgumentBuilder<CommandSourceStack, String> coordinates(com.mojang.brigadier.Command<CommandSourceStack> command) {
+        return argument("coordinates", StringArgumentType.greedyString()).executes(c -> {
+            try { return command.run(c); } catch (Exception error) { return error(c.getSource(), error); }
+        });
     }
     private static String owner(CommandContext<CommandSourceStack> c) { return StringArgumentType.getString(c, "region"); }
     private static String id(CommandContext<CommandSourceStack> c) { return Long.toString(LongArgumentType.getLong(c, "id")); }
     private static String quote(String name) { return name.equals("create") || name.equals("list") ? "\"" + name + "\"" : name; }
     private static String prefix(String owner) { return "/edb region " + quote(owner); }
     private static RegionSelection selection(CommandContext<CommandSourceStack> c) {
-        return RegionSelection.fromBlocks(c.getSource().getLevel().dimension().identifier().toString(), IntegerArgumentType.getInteger(c, "x1"),
-            IntegerArgumentType.getInteger(c, "z1"), IntegerArgumentType.getInteger(c, "x2"), IntegerArgumentType.getInteger(c, "z2"));
+        String[] raw = StringArgumentType.getString(c, "coordinates").trim().split("\\s+");
+        if (raw.length != 4 && raw.length != 6) throw new IllegalArgumentException("请输入 4 个方块坐标 X1 Z1 X2 Z2（全高度），或 6 个 X1 Y1 Z1 X2 Y2 Z2");
+        int[] p;
+        try { p = java.util.Arrays.stream(raw).mapToInt(Integer::parseInt).toArray(); }
+        catch (NumberFormatException error) { throw new IllegalArgumentException("方块坐标必须为整数"); }
+        String dimension = c.getSource().getLevel().dimension().identifier().toString();
+        return p.length == 4 ? RegionSelection.fromBlocks(dimension, p[0], p[1], p[2], p[3]) : RegionSelection.fromBox(dimension, p[0], p[1], p[2], p[3], p[4], p[5]);
     }
     private static int help(CommandSourceStack source) {
-        reply(source, "区域热备份 | OP " + BackupConfig.permissionLevel() + " | 输入方块 X/Z 坐标，自动扩展到完整区块、全部高度。");
+        reply(source, "区域热备份 | OP " + BackupConfig.permissionLevel() + " | 精确方块选区，包含两端；4 个坐标为 XZ 全高度，6 个为 XYZ 长方体。");
         reply(source, "/edb region create <区域> <x1> <z1> <x2> <z2>；/edb region list [页]");
+        reply(source, "/edb region create <区域> <x1> <y1> <z1> <x2> <y2> <z2>；update 同样接受 4 或 6 个坐标");
         reply(source, "/edb region <区域> make [备注] | list [页] | show [编号] | back <编号>");
         reply(source, "/edb region <区域> comment <编号> [新备注]；delete <编号> 删除单个备份，delete 不带编号删除整个区域及其备份");
         reply(source, "/edb region <区域> update <x1> <z1> <x2> <z2> — 只影响以后创建的备份");

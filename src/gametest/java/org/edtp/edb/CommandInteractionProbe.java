@@ -180,8 +180,8 @@ final class CommandInteractionProbe {
     private void create() {
         command("edb region create " + name + " -1 -2 0 1");
         await("已创建区域", () -> {
-            test.assertTrue(messages.subList(messageStart, messages.size()).stream().anyMatch(m -> m.contains("区块 (-1, -1) → (0, 0)") && m.contains("方块 X/Z (-16, -16) → (15, 15)")),
-                    "Block coordinates must expand correctly across zero and show actual bounds");
+            test.assertTrue(messages.subList(messageStart, messages.size()).stream().anyMatch(m -> m.contains("区块 (-1, -1) → (0, 0)") && m.contains("方块 X/Z (-1, -2) → (0, 1)")),
+                    "Exact block coordinates must retain their boundaries across zero");
             command(base() + " update 1600000 1600000 1600015 1600015");
             await("已更新区域", this::backup);
         });
@@ -212,7 +212,7 @@ final class CommandInteractionProbe {
         await("已创建区域", () -> {
             command("edb region " + name + "_other make 其他区域");
             await("备份已完成并发布", () -> {
-                command(base() + " update 1600032 1600032 1600047 1600047");
+                command(base() + " update 1600032 10 1600032 1600047 20 1600047");
                 await("已更新区域", () -> {
                     command(base() + " show 1");
                     await("100000, 100000", this::preview);
@@ -240,7 +240,12 @@ final class CommandInteractionProbe {
     }
     private void changedPreview() {
         var catalog = BackupCatalog.get(source.getServer());
-        catalog.submit(() -> catalog.backups.inspect(name, "1")).whenComplete((metadata, error) -> source.getServer().execute(() -> test.runAfterDelay(1, () -> {
+        catalog.submit(() -> {
+            var stored = catalog.regions.get(name);
+            if (stored.blocks().minY() != 10 || stored.blocks().maxY() != 20 || stored.blocks().minX() != 1600032)
+                throw new IllegalStateException("Six-coordinate region bounds did not survive persistence");
+            return catalog.backups.inspect(name, "1");
+        }).whenComplete((metadata, error) -> source.getServer().execute(() -> test.runAfterDelay(1, () -> {
             test.assertTrue(error == null, "Cannot inspect UX backup: " + error);
             var stale = new SnapshotIO.Metadata(metadata.region(), metadata.worldId(), metadata.gameTime(), metadata.dataVersion(), metadata.createdAt() - 1, metadata.comment());
             var service = RegionBackupService.get(source.getServer());

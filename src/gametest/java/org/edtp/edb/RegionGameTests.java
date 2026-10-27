@@ -39,7 +39,7 @@ public class RegionGameTests {
                 ChunkPos.unpack(ChunkPos.pack(test.absolutePos(new BlockPos(1, 2, 1)))), () ->
                     org.edtp.edb.adaptors.chunky.ChunkyProbe.run(test, test.getLevel(),
                         ChunkPos.unpack(ChunkPos.pack(test.absolutePos(new BlockPos(193, 2, 193)))),
-                        () -> CommandInteractionProbe.run(test, () -> loadedRoundTrip(test)))));
+                        () -> CommandInteractionProbe.run(test, () -> PreciseSelectionTests.run(test, () -> loadedRoundTrip(test))))));
     }
     private void loadedRoundTrip(GameTestHelper test) {
         blockEntityAdapters(test);
@@ -167,12 +167,15 @@ public class RegionGameTests {
         });
     }
     private void fakePlayerRoundTrip(GameTestHelper test, BlockPos pos, Runnable next) {
+        fakePlayerRoundTrip(test, pos, false, () -> fakePlayerRoundTrip(test, pos, true, next));
+    }
+    private void fakePlayerRoundTrip(GameTestHelper test, BlockPos pos, boolean precise, Runnable next) {
         if (!net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("carpet")) { next.run(); return; }
         var level = test.getLevel(); var service = RegionBackupService.get(level.getServer());
         var chunk = ChunkPos.unpack(ChunkPos.pack(pos));
         var fixture = new CarpetFakePlayerAdapterGameTests.Fixture[1];
         try {
-            fixture[0] = CarpetFakePlayerAdapterGameTests.setup(level, new BlockPos(chunk.getMinBlockX() + 1, pos.getY() + 3, chunk.getMinBlockZ() + 1));
+            fixture[0] = CarpetFakePlayerAdapterGameTests.setup(level, new BlockPos(chunk.getMinBlockX() + 1, pos.getY() + 3, chunk.getMinBlockZ() + 1), precise);
         } catch (Exception error) { throw new RuntimeException(error); }
         String name = "fake_" + UUID.randomUUID().toString().replace("-", "");
         var failure = new java.util.concurrent.atomic.AtomicReference<Throwable>();
@@ -206,6 +209,7 @@ public class RegionGameTests {
                 if (failure.get() != null) throw new RuntimeException(failure.get());
                 test.assertTrue(level.getServer().getPlayerList().getPlayer(extraFake) == null, "Fake created after backup survived restoration");
                 CarpetFakePlayerAdapterGameTests.cleanup(level, fixture[0]);
+                com.mojang.logging.LogUtils.getLogger().info("EDB verified Carpet fake-player vehicles: {}", precise ? "exact XYZ boundary merge" : "whole chunk");
                 next.run();
             });
         });
@@ -247,7 +251,9 @@ public class RegionGameTests {
                 test.assertTrue(service.metrics().frames() > 100, "Large capture must yield across server frames");
                 test.assertTrue(org.edtp.edb.adaptors.ModCompatibility.chunks(level).edb$holders().size() <= loadedBefore, "Backup loaded new chunks");
                 terrain.putInt("edb_test_value", 99);
-                CompletableFuture<Void> mutate = CompletableFuture.allOf(storage.write(stored, terrain), storage.write(absent, terrain.copy()));
+                var newlyGenerated = terrain.copy();
+                newlyGenerated.putInt("xPos", absent.x()); newlyGenerated.putInt("zPos", absent.z());
+                CompletableFuture<Void> mutate = CompletableFuture.allOf(storage.write(stored, terrain), storage.write(absent, newlyGenerated));
                 after(test, mutate, () -> {
                     service.requestRestore(name, message -> {});
                     test.runAfterDelay(2, () -> {

@@ -106,7 +106,7 @@ final class CompatibilityProbes {
                 tpcPlayer.teleportTo(level, pos.getX() + .5, pos.getY() + 1, pos.getZ() + .5, Set.of(), 0, 0, true)));
         });
         test.runAfterDelay(2, () -> {
-            test.assertTrue(service.status().startsWith("EDB failed without applying") && service.status().contains("Move players outside"),
+            test.assertTrue(service.status().startsWith("EDB failed without applying") && service.status().contains("移出本次涉及的区块"),
                 "A player transferred during preparation was not caught before unload: " + service.status());
             test.assertTrue(level.getChunkAt(pos) == before, "Player rejection happened after chunk replacement");
             tpcPlayer.teleportTo(level, outside.x(), outside.y(), outside.z(), Set.of(), 0, 0, true);
