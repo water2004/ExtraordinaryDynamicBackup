@@ -16,13 +16,13 @@
 | Carpet Extra Extras | 26.3-1.5.0 | 补存 `cee$spawnedInLazyChunk`；将 TNT 标记设为 true 后实测恢复保留。其余规则没有穷举测试。 |
 | Lithium | mc26.3-0.26.2-fabric | 使用其改写后的计划刻队列和区块缓存；验证剩余延迟、POI、方块实体、实体与区块重新实例化。 |
 | VMP | 0.2.0+beta.7.238+26.3 | 适配替换后的距离传播器；恢复等级全部入队后再推进 holder。既有异步加载先完成票据清理，新加载请求延后。**不支持开启异步 spreadplayers 命令**。 |
-| EntityCollisionOptimizer | 1.0.0-mc26.3-alpha.11 | 原生 FFM 后端实际启用；恢复后使方块碰撞缓存失效，实体通过正常 tracking 生命周期重建。每块查询恢复的 4 个实体，五轮共 1,024 个实体。 |
+| EntityCollisionOptimizer | 1.0.0-mc26.3-alpha.11 | 原生 FFM 后端实际启用；恢复后使方块碰撞缓存失效，实体通过正常 tracking 生命周期重建。每块查询恢复的 4 个实体，五轮共 1,024 个实体。另修复与 Async 并用时的批次借用锁缺口，见[并发借用与停服修复](eco-async-lease-fix.md)。 |
 | Teleport Commands Fabric | 2.4.1 | tick 驱动的服务随外层屏障暂停；恢复前取消目标维度的 Wild 搜索并释放票据。带连接的模拟玩家验证备份保留请求、恢复取消请求且玩家仍在线。未完成真实客户端 TPA/RTP 全流程测试。 |
 | C2ME | 0.4.2-alpha.0.106+26.3 | 维护屏障接入 C2ME scheduler 与 NoTickVD：等待调度/票据静止，保存并暂时停放选区 root tickets，再由 C2ME 正常降级；恢复时恢复票据并让 C2ME 正常升级。检测 C2ME 存储线程记录的写入/删除/flush 错误。通过 C2ME 单独基础与 10,000 未加载区块场景，以及下述 11 模组组合。 |
 
 Carpet Extra（gnembon 项目）与 Carpet Extra Extras 是不同项目。本次没有拿 26.2 的 Carpet Extra 包冒充 26.3 兼容版本。组合测试中默认关闭 C2ME gcFree serializer；另一次打开该选项并启用 TIS fake-player ticks-like-real-player、GCA 延迟任务后，连同真实 C2ME 后台存储错误探针通过。C2ME-only 和该组合均是本记录所列特定版本与场景的结果。
 
-适配代码按模组放在 `src/main/java/org/edtp/edb/adaptors/<mod>/`；需要 Mixin 的放在各自的 `mixin/` 子目录，配置位于 `src/main/resources/adaptors/<mod>.mixins.json`。Carpet、TIS Addition、GCA、VMP 和 C2ME 有独立 Mixin 配置；Carpet Extra Extras、EntityCollisionOptimizer 与 Teleport Commands Fabric 使用适配器代码，不各自声明单独 Mixin 配置。
+适配代码按模组放在 `src/main/java/org/edtp/edb/adaptors/<mod>/`；需要 Mixin 的放在各自的 `mixin/` 子目录，配置位于 `src/main/resources/adaptors/<mod>.mixins.json`。Carpet、TIS Addition、GCA、VMP、C2ME、ECO、Async、ScalableLux 和 Chunky 有独立 Mixin 配置；Carpet Extra Extras 与 Teleport Commands Fabric 使用适配器代码，不各自声明单独 Mixin 配置。
 
 ## 地图渲染器的回档后刷新
 
