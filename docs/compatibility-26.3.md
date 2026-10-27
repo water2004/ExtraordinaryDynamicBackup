@@ -2,6 +2,8 @@
 
 记录日期：2026-10-27。Windows x64、Microsoft OpenJDK 25.0.2、Fabric Loader 0.19.5、Fabric API 0.162.0+26.3。测试使用独立 Gradle 运行目录，没有更改 Orbit 用户实例。
 
+2026-10-28 更新：区域管理、精确 XYZ/XZ、Carpet 假人限高载具恢复，以及 10,000 个未加载区块的 XYZ 合并均已通过同一 31 项依赖专用服组合，保持 10 秒 watchdog 与正常停服检查。最新格式为 2，原始数据和适用范围见[精确选区回归记录](../tests/results/26.3-precise-regions.md)。下文早期结果保留其原测试范围。
+
 EDB 只适配备份/恢复所需的屏障、运行状态与缓存刷新。ECO 不承诺兼容 Async；EDB 不承担两者之间的并发兼容，相关临时补丁与专属探针已经撤销。**更新：ECO alpha.12 与 Async 的定向压力测试，以及全部 31 项依赖的专用服合装复测均通过功能与正常停服检查**，见[alpha.12 复测报告](../tests/results/26.3-eco-alpha12.md)。这是固定版本和配置的实测结果，不是全面兼容承诺。交互/权限及旧版实验记录见[历史回归报告](../tests/results/26.3-command-ux.md)。
 
 ## 已执行的范围

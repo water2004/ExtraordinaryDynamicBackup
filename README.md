@@ -90,6 +90,8 @@ ECO alpha.12 与 Async 的定向压力测试及 31 项依赖合装专用服测�
 
 ## 自动验证
 
+区域层级管理、精确 XYZ/XZ、假人与载具，以及 10,000 区块限高恢复的最新结果见[精确选区测试记录](tests/results/26.3-precise-regions.md)。
+
 `runGameTest` 启动真实的 26.3 Fabric GameTest 服务器，审计全部 Mixin，并顺序验证：
 
 - 已加载区块恢复内容且替换为新实例；实体也重新创建，保留年龄与计划刻剩余延迟。
