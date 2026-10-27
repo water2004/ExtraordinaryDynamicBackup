@@ -27,7 +27,6 @@ import org.edtp.edb.region.RegionSelection;
 import org.edtp.edb.runtime.RuntimeStateCodec;
 import org.edtp.edb.adaptors.carpet.mixin.EntityPassengersAccessor;
 import org.edtp.edb.adaptors.carpet_tis_addition.TisFakePlayerState;
-import org.edtp.edb.adaptors.carpet_tis_addition.TisFakePlayerState;
 import org.edtp.edb.adaptors.gca.GcaAutoFishTasks;
 
 import java.lang.reflect.Constructor;
@@ -97,7 +96,7 @@ public final class CarpetFakePlayerAdapter {
         runtime.remove(RESTORE_INDEX);
     }
 
-    private static CompoundTag capturePlayer(ServerLevel level, ServerPlayer player, long order) {
+    static CompoundTag capturePlayer(ServerLevel level, ServerPlayer player, long order) {
         CompoundTag entry = new CompoundTag();
         UUID uuid = player.getUUID();
         entry.putString("uuid", uuid.toString());
@@ -123,6 +122,7 @@ public final class CarpetFakePlayerAdapter {
         CompoundTag playerData = entry.getCompoundOrEmpty("player_data");
         playerData.put(RuntimeStateCodec.KEY, ((RegionAccess.RuntimeEntity) player).edb$capture(level.getGameTime(), order));
         entry.put("action_pack", captureActionPack(player));
+        entry.put("player_runtime", CarpetPlayerRuntime.capture(player));
         // The core entity snapshot stores the complete vehicle tree, including roots vanilla omits
         // when a player is the only player passenger. Store the player's own data here only.
         playerData.remove("RootVehicle");
@@ -151,7 +151,7 @@ public final class CarpetFakePlayerAdapter {
                 throw new IllegalArgumentException("Fake player belongs to a different dimension: " + name);
             ChunkPos rootChunk = ChunkPos.unpack(entry.getLongOr("root_chunk", Long.MIN_VALUE));
             BlockPos rootPos = BlockPos.of(entry.getLong("root_pos").orElseThrow());
-            if (!region.contains(rootPos) || !ChunkPos.containing(rootPos).equals(rootChunk))
+            if ((region != null && !region.contains(rootPos)) || !ChunkPos.containing(rootPos).equals(rootChunk))
                 throw new IllegalArgumentException("Fake player is outside the snapshot selection: " + name);
             CompoundTag data = entry.getCompound("player_data").orElseThrow(() -> new IllegalArgumentException("Fake-player data missing: " + name));
             Optional<String> vehicleId = entry.getString("vehicle_uuid");
@@ -167,7 +167,7 @@ public final class CarpetFakePlayerAdapter {
             var pos = data.read("Pos", net.minecraft.world.phys.Vec3.CODEC).orElseThrow(() -> new IllegalArgumentException("Fake-player position missing: " + name));
             if (!Double.isFinite(pos.x()) || !Double.isFinite(pos.y()) || !Double.isFinite(pos.z()))
                 throw new IllegalArgumentException("Fake-player position is invalid: " + name);
-            if (!region.contains(BlockPos.containing(pos))) throw new IllegalArgumentException("Fake player outside exact selection: " + name);
+            if (region != null && !region.contains(BlockPos.containing(pos))) throw new IllegalArgumentException("Fake player outside exact selection: " + name);
             ChunkPos playerChunk = ChunkPos.unpack(entry.getLongOr("player_chunk", Long.MIN_VALUE));
             if (!ChunkPos.containing(BlockPos.containing(pos)).equals(playerChunk))
                 throw new IllegalArgumentException("Fake-player chunk metadata does not match player NBT: " + name);
@@ -178,6 +178,7 @@ public final class CarpetFakePlayerAdapter {
             if (sameName != null && !isFake(sameName) && !sameName.getUUID().equals(uuid))
                 throw new IllegalArgumentException("A real player occupies fake-player name " + name);
             validateActionPack(entry.getCompoundOrEmpty("action_pack"));
+            CarpetPlayerRuntime.validate(level, entry.getCompound("player_runtime").orElseThrow());
         }
     }
 
@@ -203,7 +204,7 @@ public final class CarpetFakePlayerAdapter {
         for (ServerPlayer player : removal) removeOne(level.getServer(), player);
     }
 
-    private static void removeOne(MinecraftServer server, ServerPlayer player) {
+    static void removeOne(MinecraftServer server, ServerPlayer player) {
         TisFakePlayerState.remove(player);
         GcaAutoFishTasks.remove(player);
         player.stopRiding();
@@ -241,6 +242,15 @@ public final class CarpetFakePlayerAdapter {
             return true;
         }
         return false;
+    }
+
+    public static void restoreReferences(ServerLevel level, CompoundTag runtime) {
+        for (Tag raw : runtime.getListOrEmpty(KEY)) {
+            CompoundTag entry = (CompoundTag) raw;
+            ServerPlayer player = level.getServer().getPlayerList().getPlayer(parseUuid(entry, "uuid"));
+            if (player == null) throw new IllegalStateException("Restored fake player missing");
+            CarpetPlayerRuntime.restoreReferences(player, entry.getCompoundOrEmpty("player_runtime"));
+        }
     }
 
     private static void restorePassengerOrder(ServerLevel level, ListTag entries) {
@@ -293,7 +303,7 @@ public final class CarpetFakePlayerAdapter {
 
         try {
             GameProfile profile = new GameProfile(uuid, name);
-            ClientInformation clientInformation = ClientInformation.createDefault();
+            ClientInformation clientInformation = CarpetPlayerRuntime.clientInformation(entry.getCompoundOrEmpty("player_runtime"));
             Object fake = carpetFakeClass().getMethod("respawnFake", MinecraftServer.class, ServerLevel.class, GameProfile.class, ClientInformation.class)
                     .invoke(null, level.getServer(), level, profile, clientInformation);
             if (!(fake instanceof ServerPlayer player)) throw new IllegalStateException("Carpet respawnFake returned a non-player instance");
@@ -306,7 +316,11 @@ public final class CarpetFakePlayerAdapter {
             var rotation = playerData.read("Rotation", net.minecraft.world.phys.Vec2.CODEC).orElseThrow();
             player.snapTo(position.x, position.y, position.z, rotation.x, rotation.y);
             PlayerDataScope previous = PLAYER_DATA_OVERRIDE.get();
-            PLAYER_DATA_OVERRIDE.set(new PlayerDataScope(player.getUUID(), playerData.copy()));
+            CompoundTag loadingData = playerData.copy();
+            // ServerPlayer's ordinary login loader wakes sleepers (and can destroy a straw bed).
+            // Reattach sleeping metadata after login, without running that world-changing wake-up.
+            loadingData.remove("sleeping_pos");
+            PLAYER_DATA_OVERRIDE.set(new PlayerDataScope(player.getUUID(), loadingData));
             try {
                 playerList.placeNewPlayer(connection, player, CommonListenerCookie.createInitial(profile, false));
                 invokeLoadPlayerData(player);
@@ -319,6 +333,7 @@ public final class CarpetFakePlayerAdapter {
                 player.connection.teleport(position.x, position.y, position.z, player.getYRot(), player.getXRot());
             }
             restoreActionPack(player, entry.getCompoundOrEmpty("action_pack"));
+            CarpetPlayerRuntime.restore(player, entry.getCompoundOrEmpty("player_runtime"));
             TisFakePlayerState.restore(player, entry);
             GcaAutoFishTasks.restore(player, entry);
             savePlayerData(playerList, player);

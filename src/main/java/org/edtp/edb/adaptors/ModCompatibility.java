@@ -23,6 +23,15 @@ public final class ModCompatibility {
 
     private ModCompatibility() {}
 
+    public static void initialize() { org.edtp.edb.adaptors.carpet.CarpetRestoreSession.registerTicket(); }
+    public interface PlayerRestore extends AutoCloseable {
+        boolean removeBoundaryPlayers();
+        boolean ready();
+        boolean restoreNext();
+        void restoreReferences(CompoundTag incoming);
+        @Override void close();
+    }
+
     public static void verify() {
         if (verified) return;
         if (FabricLoader.getInstance().isModLoaded("async")) org.edtp.edb.adaptors.async.AsyncCompatibility.verify();
@@ -81,6 +90,9 @@ public final class ModCompatibility {
     public static void validatePlayers(ServerLevel level, RegionSelection region, CompoundTag runtime) { CarpetFakePlayerAdapter.validate(level, region, runtime); }
     public static void removePlayers(ServerLevel level, RegionSelection region, CompoundTag runtime) { CarpetFakePlayerAdapter.removeCurrent(level, region, runtime); }
     public static boolean restoreNextPlayer(ServerLevel level, CompoundTag runtime) { return CarpetFakePlayerAdapter.restoreNext(level, runtime); }
+    public static PlayerRestore preparePlayers(ServerLevel level, RegionSelection region, CompoundTag runtime) {
+        return new org.edtp.edb.adaptors.carpet.CarpetRestoreSession(level, region, runtime);
+    }
 
     public static void captureEntity(Entity entity, CompoundTag tag) { ExtraExtrasCompatibility.capture(entity, tag); }
     public static void restoreEntity(Entity entity, ValueInput tag) { ExtraExtrasCompatibility.restore(entity, tag); }

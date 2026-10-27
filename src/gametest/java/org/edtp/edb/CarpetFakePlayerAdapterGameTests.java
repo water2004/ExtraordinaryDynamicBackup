@@ -35,10 +35,11 @@ public final class CarpetFakePlayerAdapterGameTests {
 
     public record FakeExpectation(UUID uuid, UUID vehicle, int vehicleSeat, GameType gameMode,
                                   float health, int food, int experience, int inventoryCount,
-                                  CompoundTag actionPack, boolean usingItem, int useRemaining) {}
+                                  CompoundTag actionPack, boolean usingItem, int useRemaining, CompoundTag runtime, float cooldown, float attackStrength, BlockPos sleeping) {}
     public record Fixture(RegionSelection region, List<FakeExpectation> fakes, List<UUID> entityUuids,
                           UUID nestedRoot, UUID nestedVehicle, UUID interleavedVehicle,
-                          UUID beforePassenger, UUID afterPassenger) {}
+                          UUID beforePassenger, UUID afterPassenger, List<BoundaryExpectation> boundary) {}
+    public record BoundaryExpectation(ServerPlayer original, UUID vehicle, CompoundTag runtime) {}
 
     /** Creates two fakes on one boat, one fake on its own boat, and one fake in a nested vehicle tree. */
     public static Fixture setup(ServerLevel level, BlockPos origin) {
@@ -76,7 +77,16 @@ public final class CarpetFakePlayerAdapterGameTests {
         ServerPlayer solo = spawnFake(level, soloId, uniqueName(soloId), origin.offset(5, 1, 2));
         ServerPlayer nested = spawnFake(level, nestedId, uniqueName(nestedId), origin.offset(8, 2, 2));
         ServerPlayer interleaved = spawnFake(level, interleavedId, uniqueName(interleavedId), origin.offset(11, 2, 2));
-        for (ServerPlayer fake : List.of(sharedA, sharedB, solo, nested, interleaved)) {
+        UUID sleeperId = UUID.randomUUID();
+        BlockPos bed = origin.offset(12, 0, 4);
+        var bedState = net.minecraft.world.level.block.Blocks.STRAW_BED.defaultBlockState()
+                .setValue(net.minecraft.world.level.block.BedBlock.OCCUPIED, true);
+        level.setBlock(bed, bedState, 2);
+        level.setBlock(bed.north(), bedState.setValue(net.minecraft.world.level.block.BedBlock.PART,
+                net.minecraft.world.level.block.state.properties.BedPart.HEAD), 2);
+        ServerPlayer sleeper = spawnFake(level, sleeperId, uniqueName(sleeperId), bed.above());
+        sleeper.setSleepingPos(bed); sleeper.setPose(net.minecraft.world.entity.Pose.SLEEPING);
+        for (ServerPlayer fake : List.of(sharedA, sharedB, solo, nested, interleaved, sleeper)) {
             seedPlayerState(fake);
             fake.gameMode.changeGameModeForPlayer(GameType.ADVENTURE);
         }
@@ -102,12 +112,35 @@ public final class CarpetFakePlayerAdapterGameTests {
                     entry.getString("vehicle_uuid").map(UUID::fromString).orElse(null),
                     entry.getIntOr("vehicle_seat", -1), GameType.ADVENTURE,
                     7.0F, 11, 9, 13, entry.getCompoundOrEmpty("action_pack").copy(),
-                    entry.getBooleanOr("using_item", false), entry.getIntOr("use_remaining", 0)));
+                    entry.getBooleanOr("using_item", false), entry.getIntOr("use_remaining", 0), normalized(entry.getCompoundOrEmpty("player_runtime")),
+                    cooldown(level.getServer().getPlayerList().getPlayer(id)), level.getServer().getPlayerList().getPlayer(id).getAttackStrengthScale(0),
+                    level.getServer().getPlayerList().getPlayer(id).getSleepingPos().orElse(null)));
         }
         expected.sort(java.util.Comparator.comparing(f -> f.uuid().toString()));
         return new Fixture(region, List.copyOf(expected), List.of(sharedBoat.getUUID(), soloBoat.getUUID(), nestedRoot.getUUID(), nestedVehicle.getUUID(),
                 interleavedVehicle.getUUID(), beforePassenger.getUUID(), afterPassenger.getUUID()), nestedRoot.getUUID(), nestedVehicle.getUUID(),
-                interleavedVehicle.getUUID(), beforePassenger.getUUID(), afterPassenger.getUUID());
+                interleavedVehicle.getUUID(), beforePassenger.getUUID(), afterPassenger.getUUID(), new ArrayList<>());
+    }
+
+    public static void assertPreflight(GameTestHelper test, ServerLevel level, Fixture fixture) {
+        CompoundTag runtime = new CompoundTag(); CarpetFakePlayerAdapter.capture(level, fixture.region(), runtime);
+        ((CompoundTag) runtime.getListOrEmpty("edb_carpet_fake_players").getFirst()).getCompoundOrEmpty("player_runtime").remove("cooldown_tick");
+        boolean rejected = false;
+        try { CarpetFakePlayerAdapter.validate(level, fixture.region(), runtime); }
+        catch (RuntimeException expected) { rejected = true; }
+        test.assertTrue(rejected, "Incomplete fake runtime was accepted");
+        for (FakeExpectation expected : fixture.fakes()) test.assertTrue(level.getServer().getPlayerList().getPlayer(expected.uuid()) != null,
+                "Runtime preflight removed an online fake");
+    }
+    private static void assertTicketsReleased(GameTestHelper test, ServerLevel level, Fixture fixture) {
+        try {
+            var tickets = (net.minecraft.world.level.TicketStorage) findField(level.getChunkSource().getClass(), "ticketStorage").get(level.getChunkSource());
+            for (int i = 0; i < fixture.region().size(); i++)
+                test.assertTrue(tickets.getTickets(fixture.region().at(i).pack()).stream().noneMatch(ticket ->
+                        net.minecraft.resources.Identifier.parse("extraordinarydynamicbackup:fake_player_restore").equals(
+                                net.minecraft.core.registries.BuiltInRegistries.TICKET_TYPE.getKey(ticket.getType()))),
+                        "Temporary fake-player ticket leaked after restore");
+        } catch (ReflectiveOperationException error) { throw new IllegalStateException(error); }
     }
 
     /** Freeze expected action counters immediately before requestBackup starts its maintenance barrier. */
@@ -125,11 +158,13 @@ public final class CarpetFakePlayerAdapterGameTests {
                     entry.getIntOr("vehicle_seat", -1), player.gameMode.getGameModeForPlayer(),
                     player.getHealth(), player.getFoodData().getFoodLevel(), player.experienceLevel,
                     player.getInventory().getItem(0).getCount(), entry.getCompoundOrEmpty("action_pack").copy(),
-                    entry.getBooleanOr("using_item", false), entry.getIntOr("use_remaining", 0)));
+                    entry.getBooleanOr("using_item", false), entry.getIntOr("use_remaining", 0), normalized(entry.getCompoundOrEmpty("player_runtime")),
+                    cooldown(level.getServer().getPlayerList().getPlayer(id)), level.getServer().getPlayerList().getPlayer(id).getAttackStrengthScale(0),
+                    level.getServer().getPlayerList().getPlayer(id).getSleepingPos().orElse(null)));
         }
         expected.sort(java.util.Comparator.comparing(f -> f.uuid().toString()));
         return new Fixture(fixture.region(), List.copyOf(expected), fixture.entityUuids(), fixture.nestedRoot(), fixture.nestedVehicle(),
-                fixture.interleavedVehicle(), fixture.beforePassenger(), fixture.afterPassenger());
+                fixture.interleavedVehicle(), fixture.beforePassenger(), fixture.afterPassenger(), fixture.boundary());
     }
 
     /** Perturbs the live world after backup and returns the UUID of a new in-region fake. */
@@ -145,6 +180,21 @@ public final class CarpetFakePlayerAdapterGameTests {
                     .filter(fake -> fixture.entityUuids().get(1).equals(fake.vehicle())).findFirst().orElseThrow();
 
             ServerPlayer changing = requireFake(level, changingExpectation.uuid());
+            changing.getCooldowns().removeCooldown(changing.getCooldowns().getCooldownGroup(new ItemStack(Items.ENDER_PEARL)));
+            setInt(changing, "attackStrengthTicker", 0);
+            setInt(changing, "damageCooldownTime", 0);
+            setInt(changing.gameMode, "destroyProgressStart", -1);
+            if (!fixture.region().wholeChunks()) {
+                BlockPos outside = new BlockPos(fixture.region().blocks().minX() + 3,
+                        fixture.region().blocks().maxY() + 5, fixture.region().blocks().minZ() + 3);
+                Entity boat = createEntity(level, EntityTypes.OAK_BOAT, outside);
+                UUID id = UUID.randomUUID(); ServerPlayer boundary = spawnFake(level, id, uniqueName(id), outside.above());
+                seedPlayerState(boundary); boundary.getInventory().setItem(0, new ItemStack(Items.EMERALD, 21));
+                if (!boundary.startRiding(boat, true, false)) throw new IllegalStateException("Boundary fake could not mount");
+                fixture.boundary().add(new BoundaryExpectation(boundary, boat.getUUID(), new CompoundTag()));
+                id = UUID.randomUUID(); ServerPlayer standing = spawnFake(level, id, uniqueName(id), outside.offset(4, 0, 0));
+                seedPlayerState(standing); fixture.boundary().add(new BoundaryExpectation(standing, null, new CompoundTag()));
+            }
             changing.setHealth(2.0F);
             changing.getInventory().setItem(0, new ItemStack(Items.DIRT, 1));
             changing.experienceLevel = 2;
@@ -180,6 +230,7 @@ public final class CarpetFakePlayerAdapterGameTests {
 
     /** Verifies player NBT, all serialized ActionPack fields/actions, use progress, and direct mounts. */
     public static void assertRestored(GameTestHelper test, ServerLevel level, Fixture fixture) {
+        assertTicketsReleased(test, level, fixture);
         for (FakeExpectation expected : fixture.fakes()) {
             ServerPlayer player = level.getServer().getPlayerList().getPlayer(expected.uuid());
             test.assertTrue(player != null && CarpetFakePlayerAdapter.isFake(player), "Fake identity was not restored: " + expected.uuid());
@@ -192,6 +243,11 @@ public final class CarpetFakePlayerAdapterGameTests {
                 test.assertTrue(player.isPassenger() && expected.vehicle().equals(player.getVehicle().getUUID())
                                 && player.getVehicle().getPassengers().indexOf(player) == expected.vehicleSeat(),
                         "Direct fake vehicle relation or seat order was not restored");
+            test.assertTrue(Math.abs(cooldown(player) - expected.cooldown()) < 0.00001F, "Cooldown percentage restarted instead of resuming");
+            test.assertTrue(Math.abs(player.getAttackStrengthScale(0) - expected.attackStrength()) < 0.00001F, "Attack strength restarted");
+            test.assertTrue(java.util.Objects.equals(player.getSleepingPos().orElse(null), expected.sleeping()), "Sleeping player woke during load");
+            if (expected.sleeping() != null) test.assertTrue(level.getBlockState(expected.sleeping()).is(net.minecraft.world.level.block.Blocks.STRAW_BED)
+                    && level.getBlockState(expected.sleeping()).getValue(net.minecraft.world.level.block.BedBlock.OCCUPIED), "Login wake-up modified the saved bed");
             test.assertTrue(player.isUsingItem() == expected.usingItem(), "Fake active item-use state was not restored");
             if (expected.usingItem()) test.assertTrue(player.getUseItemRemainingTicks() == expected.useRemaining(), "Fake active item-use progress was not restored");
         }
@@ -201,8 +257,19 @@ public final class CarpetFakePlayerAdapterGameTests {
             CompoundTag entry = (CompoundTag) raw;
             UUID id = UUID.fromString(entry.getString("uuid").orElseThrow());
             FakeExpectation expected = fixture.fakes().stream().filter(fake -> fake.uuid().equals(id)).findFirst().orElseThrow();
+            test.assertTrue(expected.runtime().equals(normalized(entry.getCompoundOrEmpty("player_runtime"))),
+                    "Fake vanilla runtime differs: expected=" + expected.runtime() + " actual=" + normalized(entry.getCompoundOrEmpty("player_runtime")));
             test.assertTrue(expected.actionPack().equals(entry.getCompoundOrEmpty("action_pack")),
                     "Carpet ActionPack private fields or action progress changed for " + id);
+        }
+        for (BoundaryExpectation expected : fixture.boundary()) {
+            ServerPlayer player = requireFake(level, expected.original().getUUID());
+            test.assertTrue(player != expected.original(), "Boundary fake must be rebuilt after logout");
+            test.assertTrue(expected.runtime().equals(normalized(org.edtp.edb.adaptors.carpet.CarpetPlayerRuntime.capture(player))),
+                    "Boundary fake current runtime was changed by restore");
+            test.assertTrue(player.getInventory().getItem(0).getCount() == (expected.vehicle() == null ? 13 : 21), "Boundary fake current inventory lost");
+            test.assertTrue(expected.vehicle() == null ? !player.isPassenger() : player.isPassenger() && expected.vehicle().equals(player.getVehicle().getUUID()),
+                    "Boundary fake current mount lost");
         }
         Entity nested = level.getEntity(fixture.nestedVehicle());
         Entity root = level.getEntity(fixture.nestedRoot());
@@ -220,6 +287,11 @@ public final class CarpetFakePlayerAdapterGameTests {
     /** Removes the fixture players through PlayerList and discards its root entities. */
     public static void cleanup(ServerLevel level, Fixture fixture) {
         var playerList = level.getServer().getPlayerList();
+        for (BoundaryExpectation expected : fixture.boundary()) {
+            ServerPlayer player = playerList.getPlayer(expected.original().getUUID());
+            if (player != null) { player.stopRiding(); playerList.remove(player); }
+            if (expected.vehicle() != null && level.getEntity(expected.vehicle()) != null) level.getEntity(expected.vehicle()).discard();
+        }
         for (FakeExpectation expected : fixture.fakes()) {
             ServerPlayer player = playerList.getPlayer(expected.uuid());
             if (player != null && CarpetFakePlayerAdapter.isFake(player)) {
@@ -263,10 +335,44 @@ public final class CarpetFakePlayerAdapterGameTests {
     }
 
     private static void seedPlayerState(ServerPlayer player) {
+        player.updateOptions(new ClientInformation("zh_cn", 4, net.minecraft.world.entity.player.ChatVisiblity.HIDDEN,
+                false, 63, net.minecraft.world.entity.HumanoidArm.LEFT, false, true, net.minecraft.server.level.ParticleStatus.MINIMAL));
         player.setHealth(7.0F);
         player.getInventory().setItem(0, new ItemStack(Items.DIAMOND, 13));
         player.getFoodData().setFoodLevel(11);
         player.experienceLevel = 9;
+        player.getCooldowns().addCooldown(new ItemStack(Items.ENDER_PEARL), 237);
+        for (int i = 0; i < 23; i++) player.getCooldowns().tick();
+        try {
+            setInt(player, "attackStrengthTicker", 9); setInt(player, "damageCooldownTime", 13);
+            setInt(player, "noJumpDelay", 4); setInt(player, "takeXpDelay", 6);
+            setInt(player.gameMode, "gameTicks", 50); setInt(player.gameMode, "destroyProgressStart", 37);
+            setField(player.gameMode, "destroyPos", player.blockPosition().below());
+            setField(player.gameMode, "destroyDirection", net.minecraft.core.Direction.UP);
+            player.getCombatTracker().recordDamage(player.damageSources().generic(), 2.5F);
+            player.swing(net.minecraft.world.InteractionHand.MAIN_HAND, net.minecraft.world.item.component.SwingAnimation.DEFAULT, true);
+        } catch (Exception error) { throw new IllegalStateException(error); }
+    }
+    private static float cooldown(ServerPlayer player) { return player.getCooldowns().getCooldownPercent(new ItemStack(Items.ENDER_PEARL), 0); }
+    public static void seedRuntimeAtBarrier(ServerLevel level, Fixture fixture) {
+        try {
+            for (FakeExpectation fake : fixture.fakes()) {
+                ServerPlayer player = requireFake(level, fake.uuid());
+                setInt(player.gameMode, "gameTicks", 50); setInt(player.gameMode, "destroyProgressStart", 37);
+                setInt(player.gameMode, "delayedTickStart", 43);
+                setBoolean(player.gameMode, "isDestroyingBlock", true); setBoolean(player.gameMode, "hasDelayedDestroy", true);
+                setInt(player, "attackStrengthTicker", 9); setInt(player, "damageCooldownTime", 13);
+            }
+        } catch (Exception error) { throw new IllegalStateException(error); }
+    }
+    public static void checkpointBoundary(Fixture fixture) {
+        for (BoundaryExpectation expected : fixture.boundary())
+            expected.runtime().merge(normalized(org.edtp.edb.adaptors.carpet.CarpetPlayerRuntime.capture(expected.original())));
+    }
+    private static CompoundTag normalized(CompoundTag original) {
+        CompoundTag copy = original.copy();
+        for (String name : new String[]{"lastDamageStamp", "lastKineticHitFeedbackTime", "timeEntitySatOnShoulder"}) copy.remove(name);
+        return copy;
     }
 
     private static void seedActionPack(ServerPlayer player) throws Exception {

@@ -72,6 +72,9 @@ public final class RegionBackupService implements AutoCloseable {
     private final List<CompletableFuture<?>> writes = new ArrayList<>();
     private volatile Throwable writeFailure;
     private boolean destructive, mask, validated, fakePlayersRestored;
+    private ModCompatibility.PlayerRestore playerSession;
+    private boolean boundaryPlayersRestored;
+    private boolean boundaryPreserved;
     private String lastResult = "Idle";
     private long startedAt, frames, maxFrameNanos;
     private long lastReport;
@@ -134,7 +137,7 @@ public final class RegionBackupService implements AutoCloseable {
         request = pending; pending = null; active = true; destructive = false; mask = false;
         preservedDirectory = null;
         region = request.region;
-        validated = false; fakePlayersRestored = false;
+        validated = false; fakePlayersRestored = false; boundaryPlayersRestored = false; boundaryPreserved = false; playerSession = null;
         startedAt = System.nanoTime(); frames = 0; maxFrameNanos = 0;
         lastReport = startedAt;
         currentUuids.clear(); restoredUuids.clear(); originallyLoaded.clear(); writes.clear(); writeFailure = null;
@@ -215,8 +218,8 @@ public final class RegionBackupService implements AutoCloseable {
     private void ensurePlayersOutside() {
         for (ServerPlayer player : server.getPlayerList().getPlayers())
             if (player.level() == level && region.contains(player.chunkPosition())
-                    && (!ModCompatibility.snapshotPlayer(player) || !region.contains(player.blockPosition())))
-                throw new IllegalArgumentException("请将真实玩家或选区外假人移出本次涉及的区块：" + player.getScoreboardName());
+                    && !ModCompatibility.snapshotPlayer(player))
+                throw new IllegalArgumentException("请将真实玩家移出本次涉及的区块：" + player.getScoreboardName());
     }
     private RegionAccess.Chunks chunks() { return ModCompatibility.chunks(level); }
     private RegionAccess.Entities entities() { return (RegionAccess.Entities) ((RegionAccess.Level) level).edb$entities(); }
@@ -287,7 +290,7 @@ public final class RegionBackupService implements AutoCloseable {
         if (request.restore) {
             if (validated) {
                 ensurePlayersOutside();
-                if (preservedDirectory == null) startMask();
+                if (preservedDirectory == null || boundaryPreserved) startMask();
                 else {
                     entityOrder = RuntimeStateCodec.entityOrder(level); blockEntityOrder = RuntimeStateCodec.blockEntityOrder(level);
                     transition(Phase.PRESERVE);
@@ -470,6 +473,7 @@ public final class RegionBackupService implements AutoCloseable {
             // SETTLE drains work accepted before maintenance, including queued player transfers.
             ensurePlayersOutside();
             ModCompatibility.validatePlayers(level, region, runtime);
+            playerSession = ModCompatibility.preparePlayers(level, region, runtime);
             destructive = true;
             ModCompatibility.removePlayers(level, region, runtime);
             validated = true;
@@ -493,11 +497,21 @@ public final class RegionBackupService implements AutoCloseable {
                 throw new IllegalArgumentException("Entity UUID already loaded outside the region: " + uuid);
         for (Tag passenger : tag.getListOrEmpty("Passengers")) validateEntity((CompoundTag) passenger, owner, false);
     }
-    private void startMask() { mask = true; tracker().edb$mask(region); transition(Phase.MASK); }
+    private void startMask() {
+        mask = true; tracker().edb$mask(region); transition(Phase.MASK);
+    }
     /** Preserve current boundary chunks before unloading, including their runtime tick/entity fields. */
     private void preserve() {
         if (work != null) { if (!done()) return; work = null; progress(); }
-        if (cursor == region.size()) { entityOrder = null; blockEntityOrder = null; startMask(); return; }
+        if (cursor == region.size()) {
+            entityOrder = null; blockEntityOrder = null; boundaryPreserved = true;
+            // Logout changes vanilla/NoTickVD tickets. Consume those changes before FlowSched
+            // parks its root tickets; applying them to already parked roots removes them twice.
+            if (playerSession.removeBoundaryPlayers()) {
+                ModCompatibility.preparing(level); transition(Phase.SETTLE);
+            } else startMask();
+            return;
+        }
         List<CompletableFuture<CompoundTag>> records = new ArrayList<>(); List<ChunkPos> positions = new ArrayList<>();
         long deadline = System.nanoTime() + FRAME_NANOS;
         do {
@@ -590,6 +604,7 @@ public final class RegionBackupService implements AutoCloseable {
     private void reload() {
         pump();
         if (holdersBusy()) return;
+        if (!playerSession.ready()) return;
         for (long key : originallyLoaded) {
             ChunkHolder holder = chunks().edb$holder(key);
             if (holder != null && (!holder.getSaveSyncFuture().isDone() || entities().edb$pending(key))) return;
@@ -599,6 +614,11 @@ public final class RegionBackupService implements AutoCloseable {
             progress();
             return;
         }
+        if (!boundaryPlayersRestored) {
+            boundaryPlayersRestored = playerSession.restoreNext();
+            progress(); return;
+        }
+        playerSession.restoreReferences(runtime);
         RuntimeStateCodec.ordersChanged(level); RuntimeStateCodec.installOrders(level);
         ModCompatibility.afterRestore(level, region);
         String result = "Restore complete: " + request.label() + " (" + region.size() + " chunks)";
@@ -631,8 +651,12 @@ public final class RegionBackupService implements AutoCloseable {
             work = supply(() -> { cleanup(temporary); return null; }); transition(Phase.CLEANUP); return;
         }
         lastResult = message; active = false; phase = Phase.IDLE; work = null; entityOrder = null; blockEntityOrder = null;
+        if (playerSession != null) { playerSession.close(); playerSession = null; }
         ModCompatibility.end(level, destructive);
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) ((RegionAccess.ClientReset) player.connection).edb$resetClient();
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (ModCompatibility.snapshotPlayer(player)) player.connection.resetPosition();
+            else ((RegionAccess.ClientReset) player.connection).edb$resetClient();
+        }
         if (destructive) {
             ServerLevel restoredLevel = level; RegionSelection restoredRegion = region;
             server.schedule(new net.minecraft.server.TickTask(server.getTickCount(), () -> ((RegionAccess.StructureCache) restoredLevel).edb$invalidate(restoredRegion)));

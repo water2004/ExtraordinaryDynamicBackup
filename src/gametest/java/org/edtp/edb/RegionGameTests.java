@@ -177,11 +177,13 @@ public class RegionGameTests {
         try {
             fixture[0] = CarpetFakePlayerAdapterGameTests.setup(level, new BlockPos(chunk.getMinBlockX() + 1, pos.getY() + 3, chunk.getMinBlockZ() + 1), precise);
         } catch (Exception error) { throw new RuntimeException(error); }
+        CarpetFakePlayerAdapterGameTests.assertPreflight(test, level, fixture[0]);
         String name = "fake_" + UUID.randomUUID().toString().replace("-", "");
         var failure = new java.util.concurrent.atomic.AtomicReference<Throwable>();
         CompoundTag[] gcaPending = {null};
         UUID gcaFake = fixture[0].fakes().stream().filter(fake -> fixture[0].entityUuids().get(1).equals(fake.vehicle())).findFirst().orElseThrow().uuid();
         service.requestBackup(name, fixture[0].region(), message -> {
+            if (message.startsWith("EDB: simulation")) CarpetFakePlayerAdapterGameTests.seedRuntimeAtBarrier(level, fixture[0]);
             if (message.startsWith("EDB: simulation") && net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("gca")) {
                 try { gcaPending[0] = org.edtp.edb.adaptors.gca.GcaAutoFishAdapterGameTests.enqueueAndCaptureAtBackupStart(level.getServer().getPlayerList().getPlayer(gcaFake)); }
                 catch (Throwable error) { failure.set(error); }
@@ -196,6 +198,7 @@ public class RegionGameTests {
             if (failure.get() != null) throw new RuntimeException(failure.get());
             UUID extraFake = CarpetFakePlayerAdapterGameTests.mutate(level, fixture[0]);
             service.requestRestore(name, message -> {
+                if (message.startsWith("EDB: simulation")) CarpetFakePlayerAdapterGameTests.checkpointBoundary(fixture[0]);
                 if (message.startsWith("Restore complete")) {
                     try {
                         CarpetFakePlayerAdapterGameTests.assertRestored(test, level, fixture[0]);
