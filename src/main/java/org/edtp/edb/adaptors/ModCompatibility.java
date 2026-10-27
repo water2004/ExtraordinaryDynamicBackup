@@ -25,6 +25,7 @@ public final class ModCompatibility {
 
     public static void verify() {
         if (verified) return;
+        if (FabricLoader.getInstance().isModLoaded("async")) org.edtp.edb.adaptors.async.AsyncCompatibility.verify();
         VmpCompatibility.verify();
         ExtraExtrasCompatibility.verify();
         if (FabricLoader.getInstance().isModLoaded("teleport_commands_fabric")) TpcCompatibility.verify();
@@ -33,12 +34,19 @@ public final class ModCompatibility {
     }
 
     public static void beforeRestore(net.minecraft.server.level.ServerLevel level) {
+        org.edtp.edb.adaptors.servux.ServuxCompatibility.beforeRestore(level);
         if (FabricLoader.getInstance().isModLoaded("teleport_commands_fabric")) TpcCompatibility.beforeRestore(level);
     }
     public static boolean busy(net.minecraft.server.MinecraftServer server) {
-        return VmpAsyncLoads.busy(server) || org.edtp.edb.adaptors.carpet.PendingFakeSpawns.busy(server);
+        return VmpAsyncLoads.busy(server) || org.edtp.edb.adaptors.carpet.PendingFakeSpawns.busy(server)
+            || org.edtp.edb.adaptors.async.AsyncBackgroundTasks.busy(server);
     }
     public static void close(net.minecraft.server.MinecraftServer server) {
+        org.edtp.edb.adaptors.luckperms.LuckPermsCompatibility.close();
+        org.edtp.edb.adaptors.chunky.ChunkyCompatibility.close(server);
+        org.edtp.edb.adaptors.bluemap.BlueMapCompatibility.close(server);
+        org.edtp.edb.adaptors.squaremap.SquaremapCompatibility.close(server);
+        org.edtp.edb.adaptors.async.AsyncBackgroundTasks.close(server);
         VmpAsyncLoads.close(server); C2meMaintenance.close(server);
         for (ServerLevel level : server.getAllLevels()) C2MEStorageFailures.end(level);
     }
@@ -50,6 +58,10 @@ public final class ModCompatibility {
             : ((RegionAccess.Distance) level.getChunkSource().chunkMap.getDistanceManager()).edb$tracker();
     }
     public static void begin(ServerLevel level) {
+        if (FabricLoader.getInstance().isModLoaded("moonrise"))
+            throw new IllegalStateException("EDB does not yet support Moonrise's replacement chunk system; no snapshot or restore was applied");
+        org.edtp.edb.adaptors.servercore.ServerCoreCompatibility.verify(level);
+        org.edtp.edb.adaptors.chunky.ChunkyCompatibility.begin(level);
         C2MEStorageFailures.begin(level);
         if (C2meMaintenance.enabled()) C2meMaintenance.get(level).begin();
     }
@@ -57,9 +69,10 @@ public final class ModCompatibility {
     public static boolean chunkBusy(ServerLevel level) { return C2meMaintenance.enabled() && C2meMaintenance.get(level).busy(); }
     public static boolean freeze(ServerLevel level) { return !C2meMaintenance.enabled() || C2meMaintenance.get(level).freeze(); }
     public static void checkStorage(ServerLevel level) { C2MEStorageFailures.check(level); }
-    public static void end(ServerLevel level) {
+    public static void end(ServerLevel level, boolean restoreApplied) {
         C2MEStorageFailures.end(level);
         if (level != null && C2meMaintenance.enabled()) C2meMaintenance.get(level).end();
+        org.edtp.edb.adaptors.chunky.ChunkyCompatibility.end(level, restoreApplied);
     }
     public static boolean customChunks() { return C2meMaintenance.enabled(); }
     public static boolean snapshotPlayer(Entity entity) { return CarpetFakePlayerAdapter.isFake(entity); }
@@ -72,4 +85,14 @@ public final class ModCompatibility {
     public static void captureEntity(Entity entity, CompoundTag tag) { ExtraExtrasCompatibility.capture(entity, tag); }
     public static void restoreEntity(Entity entity, ValueInput tag) { ExtraExtrasCompatibility.restore(entity, tag); }
     public static void blocksReplaced() { EcoCompatibility.blocksReplaced(); }
+    public static java.util.Collection<net.minecraft.world.level.BlockEventData> events(ServerLevel level,
+            java.util.Collection<net.minecraft.world.level.BlockEventData> vanilla) {
+        return FabricLoader.getInstance().isModLoaded("async")
+            ? org.edtp.edb.adaptors.async.AsyncCompatibility.events(level) : vanilla;
+    }
+    public static void afterRestore(ServerLevel level, RegionSelection region) {
+        org.edtp.edb.adaptors.servercore.ServerCoreCompatibility.afterRestore(level);
+        org.edtp.edb.adaptors.bluemap.BlueMapCompatibility.afterRestore(level, region);
+        org.edtp.edb.adaptors.squaremap.SquaremapCompatibility.afterRestore(level, region);
+    }
 }

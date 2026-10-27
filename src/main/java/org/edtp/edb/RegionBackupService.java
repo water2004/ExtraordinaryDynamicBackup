@@ -221,6 +221,7 @@ public final class RegionBackupService implements AutoCloseable {
     }
     private CompletableFuture<?> lightFence() {
         List<CompletableFuture<?>> fences = new ArrayList<>();
+        fences.add(org.edtp.edb.adaptors.scalablelux.ScalableLuxFence.fence(level));
         Set<Long> positions = new HashSet<>(originallyLoaded);
         for (ChunkHolder holder : chunks().edb$holders()) {
             positions.add(holder.getPos().pack());
@@ -479,6 +480,7 @@ public final class RegionBackupService implements AutoCloseable {
             return;
         }
         RuntimeStateCodec.ordersChanged(level); RuntimeStateCodec.installOrders(level);
+        ModCompatibility.afterRestore(level, region);
         finish("Restore complete: " + request.name + " (" + region.size() + " chunks)");
     }
     /** Observe vanilla writes because synchronize alone can miss a previously failed write. */
@@ -500,7 +502,7 @@ public final class RegionBackupService implements AutoCloseable {
     private void reply(String text) { LOG.info(text); request.reply.accept(text); }
     private void finish(String message) {
         lastResult = message; active = false; phase = Phase.IDLE; work = null; entityOrder = null; blockEntityOrder = null;
-        ModCompatibility.end(level);
+        ModCompatibility.end(level, destructive);
         for (ServerPlayer player : server.getPlayerList().getPlayers()) ((RegionAccess.ClientReset) player.connection).edb$resetClient();
         if (destructive) {
             ServerLevel restoredLevel = level; RegionSelection restoredRegion = region;

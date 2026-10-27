@@ -11,6 +11,7 @@ public final class AdaptorMixinPlugin implements IMixinConfigPlugin {
     public void onLoad(String mixinPackage) {}
     public String getRefMapperConfig() { return null; }
     public boolean shouldApplyMixin(String target, String mixin) {
+        if (mixin.contains(".async.")) return FabricLoader.getInstance().isModLoaded("async");
         if (mixin.endsWith("VmpDistanceMixin")) return FabricLoader.getInstance().isModLoaded("vmp");
         if (mixin.endsWith("CarpetPlayerListDataMixin")) return FabricLoader.getInstance().isModLoaded("carpet");
         if (mixin.contains(".gca.")) return FabricLoader.getInstance().isModLoaded("gca");

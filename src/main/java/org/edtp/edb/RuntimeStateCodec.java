@@ -63,7 +63,7 @@ public final class RuntimeStateCodec {
         return result;
     }
     public static void restoreEvents(ServerLevel level, RegionSelection region, CompoundTag runtime) {
-        Set<BlockEventData> events = ((RegionAccess.Level) level).edb$events();
+        Collection<BlockEventData> events = ((RegionAccess.Level) level).edb$events();
         events.removeIf(e -> region.contains(ChunkPos.pack(e.pos())));
         for (Tag raw : runtime.getListOrEmpty("events")) {
             CompoundTag tag = (CompoundTag) raw;

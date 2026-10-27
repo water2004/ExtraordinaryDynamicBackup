@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "package": "org.edtp.edb.adaptors.chunky.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "plugin": "org.edtp.edb.adaptors.chunky.ChunkyMixinPlugin",
+  "mixins": [
+    "ChunkyGenerationTaskMixin",
+    "ChunkyFabricWorldMixin",
+    "ChunkyTrimCommandMixin",
+    "ChunkyRegionCacheAccessor",
+    "ChunkyWorldStateAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

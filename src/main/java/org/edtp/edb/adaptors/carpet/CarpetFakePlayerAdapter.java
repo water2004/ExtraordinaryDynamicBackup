@@ -228,17 +228,16 @@ public final class CarpetFakePlayerAdapter {
             restorePassengerOrder(level, entries);
             return true;
         }
-        restoreOne(level, (CompoundTag) entries.get(index));
+        CompoundTag entry = (CompoundTag) entries.get(index);
+        if (!org.edtp.edb.adaptors.luckperms.LuckPermsCompatibility.preparePlayer(
+                parseUuid(entry, "uuid"), entry.getString("name").orElseThrow())) return false;
+        restoreOne(level, entry);
         runtime.putInt(RESTORE_INDEX, index + 1);
         if (index + 1 == entries.size()) {
             restorePassengerOrder(level, entries);
             return true;
         }
         return false;
-    }
-
-    public static void restore(ServerLevel level, CompoundTag runtime) {
-        while (!restoreNext(level, runtime)) { /* fake count is bounded by the server player list */ }
     }
 
     private static void restorePassengerOrder(ServerLevel level, ListTag entries) {

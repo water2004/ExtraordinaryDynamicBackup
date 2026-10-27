@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "package": "org.edtp.edb.adaptors.async.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "plugin": "org.edtp.edb.adaptors.AdaptorMixinPlugin",
+  "mixins": [
+    "AsyncBackgroundMixin",
+    "AsyncEntityOrderMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

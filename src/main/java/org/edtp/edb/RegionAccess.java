@@ -14,7 +14,7 @@ public final class RegionAccess {
     public interface Level {
         PersistentEntitySectionManager<Entity> edb$entities();
         net.minecraft.world.level.entity.EntityTickList edb$entityTicks();
-        java.util.Set<net.minecraft.world.level.BlockEventData> edb$events();
+        java.util.Collection<net.minecraft.world.level.BlockEventData> edb$events();
         java.util.List<net.minecraft.world.level.block.entity.TickingBlockEntity> edb$blockEntityTicks();
         java.util.List<net.minecraft.world.level.block.entity.TickingBlockEntity> edb$pendingBlockEntityTicks();
     }
