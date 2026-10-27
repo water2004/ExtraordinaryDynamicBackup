@@ -1,8 +1,0 @@
-{
-  "required": true,
-  "package": "org.edtp.edb.adaptors.mixin",
-  "compatibilityLevel": "JAVA_25",
-  "plugin": "org.edtp.edb.adaptors.AdaptorMixinPlugin",
-  "mixins": ["TisFakePlayerMixin", "VmpDistanceMixin", "VmpAsyncLoadMixin"],
-  "injectors": {"defaultRequire": 1}
-}

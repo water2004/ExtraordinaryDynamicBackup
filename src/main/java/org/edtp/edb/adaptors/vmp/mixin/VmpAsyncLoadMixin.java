@@ -1,11 +1,11 @@
-package org.edtp.edb.adaptors.mixin;
+package org.edtp.edb.adaptors.vmp.mixin;
 
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.*;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
-import org.edtp.edb.adaptors.VmpAsyncLoads;
+import org.edtp.edb.adaptors.vmp.VmpAsyncLoads;
 import org.spongepowered.asm.mixin.*;
 import org.spongepowered.asm.mixin.injection.At;
 import java.util.concurrent.*;

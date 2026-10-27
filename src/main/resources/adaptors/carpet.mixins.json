@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "package": "org.edtp.edb.adaptors.carpet.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "plugin": "org.edtp.edb.adaptors.AdaptorMixinPlugin",
+  "mixins": [
+    "CarpetPlayerListDataMixin",
+    "CarpetPendingSpawnMixin",
+    "EntityPassengersAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

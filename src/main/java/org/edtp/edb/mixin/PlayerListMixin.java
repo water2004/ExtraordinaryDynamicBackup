@@ -4,6 +4,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.players.*;
 import net.minecraft.network.chat.Component;
 import org.edtp.edb.RegionBackupService;
+import org.edtp.edb.adaptors.ModCompatibility;
 import org.spongepowered.asm.mixin.*;
 import org.spongepowered.asm.mixin.injection.*;
 import org.spongepowered.asm.mixin.injection.callback.*;
@@ -18,6 +19,7 @@ public abstract class PlayerListMixin {
     }
     @Inject(method = "remove", at = @At("HEAD"), cancellable = true)
     private void edb$deferRemove(ServerPlayer player, CallbackInfo ci) {
+        if (ModCompatibility.immediatePlayerRemoval(player)) return;
         var service = RegionBackupService.find(server);
         if (service != null && service.active()) { service.defer(() -> remove(player)); ci.cancel(); }
     }

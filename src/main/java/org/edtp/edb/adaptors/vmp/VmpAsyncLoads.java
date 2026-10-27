@@ -1,4 +1,4 @@
-package org.edtp.edb.adaptors;
+package org.edtp.edb.adaptors.vmp;
 
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.TickTask;

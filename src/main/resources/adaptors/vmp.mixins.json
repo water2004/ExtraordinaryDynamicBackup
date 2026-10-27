@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "package": "org.edtp.edb.adaptors.vmp.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "plugin": "org.edtp.edb.adaptors.AdaptorMixinPlugin",
+  "mixins": [
+    "VmpDistanceMixin",
+    "VmpAsyncLoadMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

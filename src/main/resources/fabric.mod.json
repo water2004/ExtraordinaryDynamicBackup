@@ -5,7 +5,7 @@
   "name": "ExtraordinaryDynamicBackup",
   "description": "Experimental regional hot backup and restore for Minecraft 26.3.",
   "environment": "*",
-  "mixins": ["extraordinarydynamicbackup.mixins.json", "extraordinarydynamicbackup.adaptors.mixins.json"],
+  "mixins": ["extraordinarydynamicbackup.mixins.json", "adaptors/c2me.mixins.json", "adaptors/carpet.mixins.json", "adaptors/carpet_tis_addition.mixins.json", "adaptors/gca.mixins.json", "adaptors/vmp.mixins.json"],
   "entrypoints": {
     "main": ["org.edtp.ExtraordinaryDynamicBackup"],
     "client": ["org.edtp.ExtraordinaryDynamicBackupClient"]

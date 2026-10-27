@@ -17,6 +17,8 @@ import net.minecraft.world.level.chunk.storage.SimpleRegionStorage;
 import net.minecraft.world.level.storage.TagValueOutput;
 import net.minecraft.util.ProblemReporter;
 import org.slf4j.Logger;
+import org.edtp.edb.adaptors.ModCompatibility;
+
 
 import java.nio.file.Path;
 import java.util.*;
@@ -56,7 +58,7 @@ public final class RegionBackupService implements AutoCloseable {
     private final Set<Long> originallyLoaded = new HashSet<>();
     private final List<CompletableFuture<?>> writes = new ArrayList<>();
     private volatile Throwable writeFailure;
-    private boolean destructive, mask;
+    private boolean destructive, mask, validated, fakePlayersRestored;
     private String lastResult = "Idle";
     private long startedAt, frames, maxFrameNanos;
     private long lastReport;
@@ -100,6 +102,7 @@ public final class RegionBackupService implements AutoCloseable {
     public synchronized void endTick() {
         if (active || pending == null) return;
         request = pending; pending = null; active = true; destructive = false; mask = false;
+        validated = false; fakePlayersRestored = false;
         startedAt = System.nanoTime(); frames = 0; maxFrameNanos = 0;
         lastReport = startedAt;
         currentUuids.clear(); restoredUuids.clear(); originallyLoaded.clear(); writes.clear(); writeFailure = null;
@@ -127,6 +130,7 @@ public final class RegionBackupService implements AutoCloseable {
                 lastReport = System.nanoTime(); reply("EDB: " + status());
             }
             if (writeFailure != null) throw new IllegalStateException("World storage write failed", writeFailure);
+            if (level != null) ModCompatibility.checkStorage(level);
             if (System.nanoTime() - lastProgress > TimeUnit.MINUTES.toNanos(5)) throw new IllegalStateException("No progress for five minutes in " + phase);
             switch (phase) {
                 case INIT -> initialize();
@@ -156,6 +160,7 @@ public final class RegionBackupService implements AutoCloseable {
         for (ServerLevel candidate : server.getAllLevels())
             if (candidate.dimension().identifier().toString().equals(region.dimension())) level = candidate;
         if (level == null) throw new IllegalArgumentException("Dimension not available: " + region.dimension());
+        ModCompatibility.begin(level);
         if (request.restore) {
             ensurePlayersOutside();
             for (ServerPlayer player : server.getPlayerList().getPlayers()) player.closeContainer();
@@ -165,13 +170,13 @@ public final class RegionBackupService implements AutoCloseable {
     }
     private void ensurePlayersOutside() {
         for (ServerPlayer player : server.getPlayerList().getPlayers())
-            if (player.level() == level && region.contains(player.chunkPosition()))
+            if (!ModCompatibility.snapshotPlayer(player) && player.level() == level && region.contains(player.chunkPosition()))
                 throw new IllegalArgumentException("Move players outside the restoration region first: " + player.getScoreboardName());
     }
-    private RegionAccess.Chunks chunks() { return (RegionAccess.Chunks) level.getChunkSource().chunkMap; }
+    private RegionAccess.Chunks chunks() { return ModCompatibility.chunks(level); }
     private RegionAccess.Entities entities() { return (RegionAccess.Entities) ((RegionAccess.Level) level).edb$entities(); }
     private RegionAccess.Poi poi() { return (RegionAccess.Poi) level.getPoiManager(); }
-    private RegionAccess.Tracker tracker() { return (RegionAccess.Tracker) ((RegionAccess.Distance) level.getChunkSource().chunkMap.getDistanceManager()).edb$tracker(); }
+    private RegionAccess.Tracker tracker() { return ModCompatibility.tracker(level); }
     private boolean entitiesLoaded(long key) { return ((RegionAccess.Level) level).edb$entities().areEntitiesLoaded(key); }
     private void pump() {
         long deadline = System.nanoTime() + FRAME_NANOS / 2;
@@ -180,6 +185,7 @@ public final class RegionBackupService implements AutoCloseable {
         level.getChunkSource().getLightEngine().tryScheduleUpdate();
     }
     private boolean holdersBusy() {
+        if (ModCompatibility.customChunks()) return ModCompatibility.chunkBusy(level);
         for (ChunkHolder holder : chunks().edb$holders())
             if (((RegionAccess.Generation) holder).edb$busy() || !holder.getSaveSyncFuture().isDone()) return true;
         return false;
@@ -197,9 +203,9 @@ public final class RegionBackupService implements AutoCloseable {
             List<Entity> live = entities().edb$chunkEntities(key);
             if (!live.isEmpty() && !entitiesLoaded(key)) { entities().edb$request(key); return; }
             for (Entity entity : live) {
-                if (entity instanceof Player) continue;
+                if (entity instanceof Player && !ModCompatibility.snapshotPlayer(entity)) continue;
                 Entity tree = entity.getRootVehicle();
-                if (!region.contains(tree.chunkPosition()) || tree.getPassengersAndSelf().anyMatch(e -> e instanceof Player))
+                if (!region.contains(tree.chunkPosition()) || tree.getPassengersAndSelf().anyMatch(e -> e instanceof Player && !ModCompatibility.snapshotPlayer(e)))
                     throw new IllegalStateException("Passenger tree crosses the selection or includes a player: " + entity.getUUID());
                 tree.getPassengersAndSelf().forEach(member -> currentUuids.add(member.getUUID()));
             }
@@ -208,8 +214,9 @@ public final class RegionBackupService implements AutoCloseable {
             cursor++; progress();
         }
         if (cursor == region.size()) {
+            if (!ModCompatibility.freeze(level)) return;
             // No gameplay, global tasks or chunk tasks will be pumped during the following capture/validation phases.
-            work = lightFence(); transition(Phase.LIGHT);
+            work = ModCompatibility.customChunks() ? CompletableFuture.allOf(lightFence(), sync()) : lightFence(); transition(Phase.LIGHT);
         }
     }
     private CompletableFuture<?> lightFence() {
@@ -228,11 +235,17 @@ public final class RegionBackupService implements AutoCloseable {
     private void light() {
         level.getChunkSource().getLightEngine().tryScheduleUpdate();
         if (!done()) return;
-        if (server.getPendingTasksCount() != 0) { work = null; transition(Phase.SETTLE); return; }
-        if (request.restore) transition(Phase.VALIDATE);
+        if (server.getPendingTasksCount() != 0) { ModCompatibility.preparing(level); work = null; transition(Phase.SETTLE); return; }
+        if (request.restore) {
+            if (validated) {
+                ensurePlayersOutside();
+                mask = true; tracker().edb$mask(region); transition(Phase.MASK);
+            } else transition(Phase.VALIDATE);
+        }
         else {
             metadata = new SnapshotIO.Metadata(region, metadata.worldId(), level.getGameTime(), metadata.dataVersion());
             runtime = RuntimeStateCodec.captureEvents(level, region);
+            ModCompatibility.capturePlayers(level, region, runtime);
             entityOrder = RuntimeStateCodec.entityOrder(level); blockEntityOrder = RuntimeStateCodec.blockEntityOrder(level);
             transition(Phase.CAPTURE);
         }
@@ -268,7 +281,9 @@ public final class RegionBackupService implements AutoCloseable {
         ListTag list = new ListTag();
         try (ProblemReporter.ScopedCollector reporter = new ProblemReporter.ScopedCollector(LOG)) {
             for (Entity entity : entities().edb$chunkEntities(pos.pack())) {
-                if (!entity.shouldBeSaved()) continue;
+                boolean fakeVehicle = !(entity instanceof Player) && !entity.isPassenger()
+                        && entity.getPassengersAndSelf().anyMatch(ModCompatibility::snapshotPlayer);
+                if (!entity.shouldBeSaved() && !fakeVehicle) continue;
                 TagValueOutput output = TagValueOutput.createWithContext(reporter, level.registryAccess());
                 if (entity.save(output)) {
                     CompoundTag tag = output.buildResult();
@@ -361,7 +376,12 @@ public final class RegionBackupService implements AutoCloseable {
             }
             // SETTLE drains work accepted before maintenance, including queued player transfers.
             ensurePlayersOutside();
-            tracker().edb$mask(region); mask = true; transition(Phase.MASK);
+            ModCompatibility.validatePlayers(level, region, runtime);
+            destructive = true;
+            ModCompatibility.removePlayers(level, region, runtime);
+            validated = true;
+            ModCompatibility.preparing(level);
+            transition(Phase.SETTLE);
         }
     }
     private void validateEntity(CompoundTag tag, ChunkPos owner, boolean rootEntity) {
@@ -394,7 +414,10 @@ public final class RegionBackupService implements AutoCloseable {
             if (chunks().edb$holder(key) != null || chunks().edb$pending(key) || !entities().edb$unloaded(key) || poi().edb$pending(key)) return;
             cursor++; progress();
         }
-        if (cursor == region.size()) { work = CompletableFuture.allOf(sync(), lightFence()); transition(Phase.DRAIN); }
+        if (cursor == region.size()) {
+            if (!ModCompatibility.freeze(level)) return;
+            work = CompletableFuture.allOf(sync(), lightFence()); transition(Phase.DRAIN);
+        }
     }
     private CompletableFuture<Void> sync() {
         return CompletableFuture.allOf(level.getChunkSource().chunkMap.synchronize(true), entities().edb$storage().synchronize(true), poi().edb$storage().synchronize(true));
@@ -450,6 +473,11 @@ public final class RegionBackupService implements AutoCloseable {
             ChunkHolder holder = chunks().edb$holder(key);
             if (holder != null && (!holder.getSaveSyncFuture().isDone() || entities().edb$pending(key))) return;
         }
+        if (!fakePlayersRestored) {
+            fakePlayersRestored = ModCompatibility.restoreNextPlayer(level, runtime);
+            progress();
+            return;
+        }
         RuntimeStateCodec.ordersChanged(level); RuntimeStateCodec.installOrders(level);
         finish("Restore complete: " + request.name + " (" + region.size() + " chunks)");
     }
@@ -472,6 +500,7 @@ public final class RegionBackupService implements AutoCloseable {
     private void reply(String text) { LOG.info(text); request.reply.accept(text); }
     private void finish(String message) {
         lastResult = message; active = false; phase = Phase.IDLE; work = null; entityOrder = null; blockEntityOrder = null;
+        ModCompatibility.end(level);
         for (ServerPlayer player : server.getPlayerList().getPlayers()) ((RegionAccess.ClientReset) player.connection).edb$resetClient();
         if (destructive) {
             ServerLevel restoredLevel = level; RegionSelection restoredRegion = region;

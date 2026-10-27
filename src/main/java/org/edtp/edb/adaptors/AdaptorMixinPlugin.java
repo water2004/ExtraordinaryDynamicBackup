@@ -12,10 +12,12 @@ public final class AdaptorMixinPlugin implements IMixinConfigPlugin {
     public String getRefMapperConfig() { return null; }
     public boolean shouldApplyMixin(String target, String mixin) {
         if (mixin.endsWith("VmpDistanceMixin")) return FabricLoader.getInstance().isModLoaded("vmp");
+        if (mixin.endsWith("CarpetPlayerListDataMixin")) return FabricLoader.getInstance().isModLoaded("carpet");
+        if (mixin.contains(".gca.")) return FabricLoader.getInstance().isModLoaded("gca");
         return true;
     }
     public void acceptTargets(Set<String> mine, Set<String> other) {}
-    public List<String> getMixins() { return null; }
+    public List<String> getMixins() { return List.of(); }
     public void preApply(String target, ClassNode node, String mixin, IMixinInfo info) {}
     public void postApply(String target, ClassNode node, String mixin, IMixinInfo info) {}
 }

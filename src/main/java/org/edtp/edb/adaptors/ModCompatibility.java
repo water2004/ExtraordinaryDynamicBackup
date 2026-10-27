@@ -1,75 +1,75 @@
 package org.edtp.edb.adaptors;
 
 import net.fabricmc.loader.api.FabricLoader;
-import java.lang.reflect.Method;
-import java.lang.reflect.Field;
+import org.edtp.edb.adaptors.entity_collision_optimizer.EcoCompatibility;
+import org.edtp.edb.adaptors.carpet_extra_extras.ExtraExtrasCompatibility;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.item.PrimedTnt;
+import org.edtp.edb.adaptors.vmp.VmpCompatibility;
+import org.edtp.edb.adaptors.vmp.VmpAsyncLoads;
+import org.edtp.edb.adaptors.teleport_commands_fabric.TpcCompatibility;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.server.level.ServerLevel;
+import org.edtp.edb.RegionAccess;
+import org.edtp.edb.adaptors.c2me.C2meMaintenance;
+import org.edtp.edb.adaptors.c2me.C2MEStorageFailures;
+import org.edtp.edb.adaptors.carpet.CarpetFakePlayerAdapter;
+import org.edtp.edb.RegionSelection;
+import net.minecraft.server.level.ServerPlayer;
 
 /** Optional public mod hooks, resolved once. No dependency is bundled or required. */
 public final class ModCompatibility {
-    private static Method ecoInvalidateBlocks;
-    private static Field extraExtrasTntFlag;
     private static boolean verified;
 
     private ModCompatibility() {}
 
     public static void verify() {
         if (verified) return;
-        if (FabricLoader.getInstance().isModLoaded("c2me") || FabricLoader.getInstance().isModLoaded("c2me-rewrites-chunk-system")
-            || FabricLoader.getInstance().isModLoaded("c2me-rewrites-chunkio")) {
-            throw new IllegalStateException("C2ME's independent chunk scheduler is not yet supported; EDB will not capture or overwrite this world's chunks");
-        }
-        if (FabricLoader.getInstance().isModLoaded("vmp")) {
-            try {
-                if (Class.forName("com.ishland.vmp.common.config.Config").getField("USE_ASYNC_CHUNKS_ON_SOME_COMMANDS").getBoolean(null))
-                    throw new IllegalStateException("VMP asynchronous commands must be disabled before using EDB (use_async_chunks_on_some_commands)");
-            } catch (ReflectiveOperationException e) { throw new IllegalStateException("Unsupported VMP configuration API", e); }
-        }
-        if (FabricLoader.getInstance().isModLoaded("carpet-extra-extras")) extraExtrasFlag();
+        VmpCompatibility.verify();
+        ExtraExtrasCompatibility.verify();
         if (FabricLoader.getInstance().isModLoaded("teleport_commands_fabric")) TpcCompatibility.verify();
-        ecoInvalidateBlocks = hook("entity_collision_optimizer", "org.edtp.entitycollisionoptimizer.collision.CollisionCacheEpochs", "invalidateBlocks");
+        EcoCompatibility.verify();
         verified = true;
     }
 
     public static void beforeRestore(net.minecraft.server.level.ServerLevel level) {
         if (FabricLoader.getInstance().isModLoaded("teleport_commands_fabric")) TpcCompatibility.beforeRestore(level);
     }
-    public static boolean busy(net.minecraft.server.MinecraftServer server) { return VmpAsyncLoads.busy(server); }
-    public static void close(net.minecraft.server.MinecraftServer server) { VmpAsyncLoads.close(server); }
-
-    public static void captureEntity(Entity entity, CompoundTag tag) {
-        if (!(entity instanceof PrimedTnt) || !FabricLoader.getInstance().isModLoaded("carpet-extra-extras")) return;
-        try { tag.putBoolean("cee_lazy_tnt", extraExtrasFlag().getBoolean(entity)); }
-        catch (IllegalAccessException e) { throw new IllegalStateException("Cannot capture Extra Extras TNT state", e); }
+    public static boolean busy(net.minecraft.server.MinecraftServer server) {
+        return VmpAsyncLoads.busy(server) || org.edtp.edb.adaptors.carpet.PendingFakeSpawns.busy(server);
     }
-
-    public static void restoreEntity(Entity entity, ValueInput tag) {
-        if (!(entity instanceof PrimedTnt) || !FabricLoader.getInstance().isModLoaded("carpet-extra-extras")) return;
-        try { extraExtrasFlag().setBoolean(entity, tag.getBooleanOr("cee_lazy_tnt", false)); }
-        catch (IllegalAccessException e) { throw new IllegalStateException("Cannot restore Extra Extras TNT state", e); }
+    public static void close(net.minecraft.server.MinecraftServer server) {
+        VmpAsyncLoads.close(server); C2meMaintenance.close(server);
+        for (ServerLevel level : server.getAllLevels()) C2MEStorageFailures.end(level);
     }
-
-    private static Field extraExtrasFlag() {
-        if (extraExtrasTntFlag != null) return extraExtrasTntFlag;
-        try {
-            Field field = PrimedTnt.class.getDeclaredField("cee$spawnedInLazyChunk");
-            field.setAccessible(true);
-            return extraExtrasTntFlag = field;
-        } catch (ReflectiveOperationException e) { throw new IllegalStateException("Unsupported Extra Extras TNT layout", e); }
+    public static RegionAccess.Chunks chunks(ServerLevel level) {
+        return C2meMaintenance.enabled() ? C2meMaintenance.get(level) : (RegionAccess.Chunks) level.getChunkSource().chunkMap;
     }
-
-    private static Method hook(String mod, String owner, String method) {
-        if (!FabricLoader.getInstance().isModLoaded(mod)) return null;
-        try { return Class.forName(owner).getMethod(method); }
-        catch (ReflectiveOperationException e) { throw new IllegalStateException("Unsupported " + mod + " API: " + owner + "." + method, e); }
+    public static RegionAccess.Tracker tracker(ServerLevel level) {
+        return C2meMaintenance.enabled() ? C2meMaintenance.get(level)
+            : ((RegionAccess.Distance) level.getChunkSource().chunkMap.getDistanceManager()).edb$tracker();
     }
-
-    public static void blocksReplaced() {
-        if (ecoInvalidateBlocks == null) return;
-        try { ecoInvalidateBlocks.invoke(null); }
-        catch (ReflectiveOperationException e) { throw new IllegalStateException("Cannot invalidate ECO collision caches", e); }
+    public static void begin(ServerLevel level) {
+        C2MEStorageFailures.begin(level);
+        if (C2meMaintenance.enabled()) C2meMaintenance.get(level).begin();
     }
+    public static void preparing(ServerLevel level) { if (C2meMaintenance.enabled()) C2meMaintenance.get(level).preparing(); }
+    public static boolean chunkBusy(ServerLevel level) { return C2meMaintenance.enabled() && C2meMaintenance.get(level).busy(); }
+    public static boolean freeze(ServerLevel level) { return !C2meMaintenance.enabled() || C2meMaintenance.get(level).freeze(); }
+    public static void checkStorage(ServerLevel level) { C2MEStorageFailures.check(level); }
+    public static void end(ServerLevel level) {
+        C2MEStorageFailures.end(level);
+        if (level != null && C2meMaintenance.enabled()) C2meMaintenance.get(level).end();
+    }
+    public static boolean customChunks() { return C2meMaintenance.enabled(); }
+    public static boolean snapshotPlayer(Entity entity) { return CarpetFakePlayerAdapter.isFake(entity); }
+    public static boolean immediatePlayerRemoval(ServerPlayer player) { return CarpetFakePlayerAdapter.isImmediateRestoreRemoval(player); }
+    public static void capturePlayers(ServerLevel level, RegionSelection region, CompoundTag runtime) { CarpetFakePlayerAdapter.capture(level, region, runtime); }
+    public static void validatePlayers(ServerLevel level, RegionSelection region, CompoundTag runtime) { CarpetFakePlayerAdapter.validate(level, region, runtime); }
+    public static void removePlayers(ServerLevel level, RegionSelection region, CompoundTag runtime) { CarpetFakePlayerAdapter.removeCurrent(level, region, runtime); }
+    public static boolean restoreNextPlayer(ServerLevel level, CompoundTag runtime) { return CarpetFakePlayerAdapter.restoreNext(level, runtime); }
+
+    public static void captureEntity(Entity entity, CompoundTag tag) { ExtraExtrasCompatibility.capture(entity, tag); }
+    public static void restoreEntity(Entity entity, ValueInput tag) { ExtraExtrasCompatibility.restore(entity, tag); }
+    public static void blocksReplaced() { EcoCompatibility.blocksReplaced(); }
 }

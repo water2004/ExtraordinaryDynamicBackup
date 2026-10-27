@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "package": "org.edtp.edb.adaptors.c2me.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "plugin": "org.edtp.edb.adaptors.AdaptorMixinPlugin",
+  "mixins": [
+    "C2meSchedulerMixin",
+    "C2meNoTickMixin",
+    "C2MEStorageThreadFailureMixin",
+    "C2meGcFreeChunkSerializerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

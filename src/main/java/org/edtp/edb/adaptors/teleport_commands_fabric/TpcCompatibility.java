@@ -1,17 +1,17 @@
-package org.edtp.edb.adaptors;
+package org.edtp.edb.adaptors.teleport_commands_fabric;
 
 import net.minecraft.server.level.ServerLevel;
 import java.lang.reflect.*;
 import java.util.UUID;
 
 /** TPC 2.4.1: Wild searches retain candidate batches across ticks. */
-final class TpcCompatibility {
+public final class TpcCompatibility {
     private static final String ROOT = "org.AndrewElizabeth.teleportcommandsfabric.";
     private static Field TELEPORT, WILD;
     private static Method HAS_WILD, CANCEL, RELEASE_SEARCH;
     private static Object CANCELLED;
     private static boolean verified;
-    static void verify() {
+    public static void verify() {
         if (verified) return;
         try {
             Class<?> main = Class.forName(ROOT + "TeleportCommands");
@@ -26,7 +26,7 @@ final class TpcCompatibility {
             verified = true;
         } catch (ReflectiveOperationException e) { throw new IllegalStateException("Unsupported TPC API", e); }
     }
-    static void beforeRestore(ServerLevel level) {
+    public static void beforeRestore(ServerLevel level) {
         try {
             Object wild = WILD.get(null), teleports = TELEPORT.get(null);
             if (wild == null || teleports == null) throw new IllegalStateException("TPC services not initialized");

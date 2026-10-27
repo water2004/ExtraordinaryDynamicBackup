@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "package": "org.edtp.edb.adaptors.gca.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "plugin": "org.edtp.edb.adaptors.AdaptorMixinPlugin",
+  "mixins": [
+    "GcaAutoFishMixin",
+    "GcaSpawnMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
