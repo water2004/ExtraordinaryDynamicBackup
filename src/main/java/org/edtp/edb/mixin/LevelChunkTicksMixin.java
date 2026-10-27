@@ -1,6 +1,6 @@
 package org.edtp.edb.mixin;
 import net.minecraft.world.ticks.*;
-import org.edtp.edb.RegionAccess;
+import org.edtp.edb.bridge.RegionAccess;
 import org.spongepowered.asm.mixin.*;
 import java.util.List;
 import java.util.Set;

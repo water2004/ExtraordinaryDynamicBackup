@@ -1,6 +1,6 @@
 package org.edtp.edb.mixin;
 import net.minecraft.server.level.ServerChunkCache;
-import org.edtp.edb.RegionAccess;
+import org.edtp.edb.bridge.RegionAccess;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 

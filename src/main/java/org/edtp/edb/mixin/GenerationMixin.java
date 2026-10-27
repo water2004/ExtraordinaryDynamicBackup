@@ -1,6 +1,6 @@
 package org.edtp.edb.mixin;
 import net.minecraft.server.level.*;
-import org.edtp.edb.RegionAccess;
+import org.edtp.edb.bridge.RegionAccess;
 import org.spongepowered.asm.mixin.*;
 import java.util.concurrent.atomic.*;
 @Mixin(GenerationChunkHolder.class)

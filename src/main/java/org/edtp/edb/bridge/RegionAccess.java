@@ -1,4 +1,6 @@
-package org.edtp.edb;
+package org.edtp.edb.bridge;
+
+import org.edtp.edb.region.RegionSelection;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ChunkHolder;

@@ -1,7 +1,9 @@
 package org.edtp.edb.mixin;
+
+import org.edtp.edb.region.RegionSelection;
+import org.edtp.edb.bridge.RegionAccess;
 import net.minecraft.server.level.LoadingChunkTracker;
 import net.minecraft.server.level.ChunkTracker;
-import org.edtp.edb.*;
 import org.spongepowered.asm.mixin.*;
 @Mixin(LoadingChunkTracker.class)
 public abstract class LoadingTrackerMixin extends ChunkTracker implements RegionAccess.Tracker {

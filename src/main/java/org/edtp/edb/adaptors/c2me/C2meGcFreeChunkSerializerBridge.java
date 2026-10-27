@@ -2,8 +2,8 @@ package org.edtp.edb.adaptors.c2me;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
-import org.edtp.edb.RegionAccess;
-import org.edtp.edb.RuntimeStateCodec;
+import org.edtp.edb.bridge.RegionAccess;
+import org.edtp.edb.runtime.RuntimeStateCodec;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;

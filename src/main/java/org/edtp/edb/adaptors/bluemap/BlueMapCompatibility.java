@@ -3,7 +3,7 @@ package org.edtp.edb.adaptors.bluemap;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import org.edtp.edb.RegionSelection;
+import org.edtp.edb.region.RegionSelection;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;

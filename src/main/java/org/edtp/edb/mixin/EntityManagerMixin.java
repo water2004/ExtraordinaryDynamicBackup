@@ -6,7 +6,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.chunk.storage.SimpleRegionStorage;
 import net.minecraft.world.level.entity.*;
-import org.edtp.edb.RegionAccess;
+import org.edtp.edb.bridge.RegionAccess;
 import org.spongepowered.asm.mixin.*;
 import java.util.List;
 

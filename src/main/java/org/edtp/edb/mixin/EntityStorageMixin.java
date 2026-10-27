@@ -3,7 +3,7 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.util.thread.ConsecutiveExecutor;
 import net.minecraft.world.level.chunk.storage.EntityStorage;
 import net.minecraft.world.level.chunk.storage.SimpleRegionStorage;
-import org.edtp.edb.RegionAccess;
+import org.edtp.edb.bridge.RegionAccess;
 import org.spongepowered.asm.mixin.*;
 
 @Mixin(EntityStorage.class)

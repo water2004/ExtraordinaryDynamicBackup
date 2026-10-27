@@ -1,4 +1,4 @@
-package org.edtp.edb;
+package org.edtp.edb.region;
 
 import net.minecraft.world.level.ChunkPos;
 

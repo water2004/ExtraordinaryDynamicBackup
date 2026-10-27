@@ -7,9 +7,9 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.BlockEventData;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
-import org.edtp.edb.RegionBackupService;
-import org.edtp.edb.RegionSelection;
-import org.edtp.edb.RuntimeStateCodec;
+import org.edtp.edb.operation.RegionBackupService;
+import org.edtp.edb.region.RegionSelection;
+import org.edtp.edb.runtime.RuntimeStateCodec;
 
 import java.util.ArrayList;
 import java.util.Collection;

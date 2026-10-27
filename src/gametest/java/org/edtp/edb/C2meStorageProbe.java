@@ -1,5 +1,8 @@
 package org.edtp.edb;
 
+import org.edtp.edb.runtime.RuntimeStateCodec;
+import org.edtp.edb.bridge.RegionAccess;
+
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;

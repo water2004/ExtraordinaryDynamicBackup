@@ -2,8 +2,8 @@ package org.edtp.edb.adaptors.async.mixin;
 
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
-import org.edtp.edb.RegionAccess;
-import org.edtp.edb.RuntimeStateCodec;
+import org.edtp.edb.bridge.RegionAccess;
+import org.edtp.edb.runtime.RuntimeStateCodec;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;

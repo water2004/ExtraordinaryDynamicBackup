@@ -2,7 +2,7 @@ package org.edtp.edb.adaptors.bluemap;
 
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
-import org.edtp.edb.RegionSelection;
+import org.edtp.edb.region.RegionSelection;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;

@@ -1,8 +1,10 @@
 package org.edtp.edb.mixin;
+
+import org.edtp.edb.region.RegionSelection;
+import org.edtp.edb.bridge.RegionAccess;
 import it.unimi.dsi.fastutil.longs.*;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import net.minecraft.world.level.levelgen.structure.*;
-import org.edtp.edb.*;
 import org.spongepowered.asm.mixin.*;
 import java.util.Map;
 @Mixin(StructureCheck.class)

@@ -5,7 +5,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
-import org.edtp.edb.RegionSelection;
+import org.edtp.edb.region.RegionSelection;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;

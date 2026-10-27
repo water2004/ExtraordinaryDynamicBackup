@@ -1,8 +1,8 @@
 package org.edtp.edb.mixin;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.chunk.LevelChunk;
-import org.edtp.edb.RegionAccess;
-import org.edtp.edb.RuntimeStateCodec;
+import org.edtp.edb.bridge.RegionAccess;
+import org.edtp.edb.runtime.RuntimeStateCodec;
 import org.spongepowered.asm.mixin.*;
 import org.spongepowered.asm.mixin.injection.*;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;

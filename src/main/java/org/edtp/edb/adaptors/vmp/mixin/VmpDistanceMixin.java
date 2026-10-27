@@ -3,8 +3,8 @@ package org.edtp.edb.adaptors.vmp.mixin;
 import it.unimi.dsi.fastutil.longs.Long2IntLinkedOpenHashMap;
 import net.minecraft.server.level.ChunkLevel;
 import net.minecraft.server.level.DistanceManager;
-import org.edtp.edb.RegionAccess;
-import org.edtp.edb.RegionSelection;
+import org.edtp.edb.bridge.RegionAccess;
+import org.edtp.edb.region.RegionSelection;
 import org.spongepowered.asm.mixin.*;
 import java.lang.reflect.Method;
 

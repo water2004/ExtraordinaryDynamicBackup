@@ -2,7 +2,7 @@ package org.edtp.edb.mixin;
 
 import it.unimi.dsi.fastutil.longs.*;
 import net.minecraft.server.level.*;
-import org.edtp.edb.RegionAccess;
+import org.edtp.edb.bridge.RegionAccess;
 import org.spongepowered.asm.mixin.*;
 import java.util.function.BooleanSupplier;
 

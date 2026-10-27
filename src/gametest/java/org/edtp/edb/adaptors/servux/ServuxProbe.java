@@ -7,7 +7,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
-import org.edtp.edb.RegionBackupService;
+import org.edtp.edb.operation.RegionBackupService;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;

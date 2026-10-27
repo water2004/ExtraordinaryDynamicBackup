@@ -3,7 +3,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.level.storage.ValueInput;
-import org.edtp.edb.RegionAccess;
+import org.edtp.edb.bridge.RegionAccess;
 import org.spongepowered.asm.mixin.*;
 @Mixin(FallingBlockEntity.class)
 public abstract class FallingBlockMixin implements RegionAccess.SpecialEntity {

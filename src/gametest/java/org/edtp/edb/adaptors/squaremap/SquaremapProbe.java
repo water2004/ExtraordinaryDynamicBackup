@@ -4,7 +4,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
-import org.edtp.edb.RegionSelection;
+import org.edtp.edb.region.RegionSelection;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;

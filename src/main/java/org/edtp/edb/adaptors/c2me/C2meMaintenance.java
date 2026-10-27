@@ -1,9 +1,11 @@
 package org.edtp.edb.adaptors.c2me;
 
+import org.edtp.edb.region.RegionSelection;
+import org.edtp.edb.bridge.RegionAccess;
+
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.*;
-import org.edtp.edb.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.Executor;

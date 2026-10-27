@@ -2,7 +2,7 @@ package org.edtp.edb.mixin;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.server.MinecraftServer;
-import org.edtp.edb.RegionBackupService;
+import org.edtp.edb.operation.RegionBackupService;
 import org.spongepowered.asm.mixin.*;
 import org.spongepowered.asm.mixin.injection.*;
 import org.spongepowered.asm.mixin.injection.callback.*;

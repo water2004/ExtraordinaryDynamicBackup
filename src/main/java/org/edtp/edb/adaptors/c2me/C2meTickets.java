@@ -2,7 +2,7 @@ package org.edtp.edb.adaptors.c2me;
 
 import net.minecraft.server.level.ChunkHolder;
 import net.minecraft.world.level.ChunkPos;
-import org.edtp.edb.RegionSelection;
+import org.edtp.edb.region.RegionSelection;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;

@@ -1,6 +1,6 @@
 package org.edtp.edb.mixin;
 import net.minecraft.world.level.Level;
-import org.edtp.edb.RegionAccess;
+import org.edtp.edb.bridge.RegionAccess;
 import org.spongepowered.asm.mixin.*;
 @Mixin(Level.class)
 public abstract class LevelMixin implements RegionAccess.TickCounter {

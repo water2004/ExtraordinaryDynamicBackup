@@ -10,11 +10,11 @@ import org.edtp.edb.adaptors.teleport_commands_fabric.TpcCompatibility;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.server.level.ServerLevel;
-import org.edtp.edb.RegionAccess;
+import org.edtp.edb.bridge.RegionAccess;
 import org.edtp.edb.adaptors.c2me.C2meMaintenance;
 import org.edtp.edb.adaptors.c2me.C2MEStorageFailures;
 import org.edtp.edb.adaptors.carpet.CarpetFakePlayerAdapter;
-import org.edtp.edb.RegionSelection;
+import org.edtp.edb.region.RegionSelection;
 import net.minecraft.server.level.ServerPlayer;
 
 /** Optional public mod hooks, resolved once. No dependency is bundled or required. */

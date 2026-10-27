@@ -1,4 +1,7 @@
-package org.edtp.edb;
+package org.edtp.edb.runtime;
+
+import org.edtp.edb.region.RegionSelection;
+import org.edtp.edb.bridge.RegionAccess;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;

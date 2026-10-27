@@ -1,7 +1,7 @@
 package org.edtp.edb.mixin;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.block.piston.PistonMovingBlockEntity;
-import org.edtp.edb.RegionAccess;
+import org.edtp.edb.bridge.RegionAccess;
 import org.spongepowered.asm.mixin.*;
 @Mixin(PistonMovingBlockEntity.class)
 public class PistonMixin implements RegionAccess.Piston {

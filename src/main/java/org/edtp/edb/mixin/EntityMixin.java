@@ -1,5 +1,8 @@
 package org.edtp.edb.mixin;
 
+import org.edtp.edb.runtime.RuntimeStateCodec;
+import org.edtp.edb.bridge.RegionAccess;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
@@ -7,7 +10,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.phys.Vec3;
-import org.edtp.edb.*;
 import org.spongepowered.asm.mixin.*;
 import org.spongepowered.asm.mixin.injection.*;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
