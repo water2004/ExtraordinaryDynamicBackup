@@ -28,16 +28,31 @@ public class RegionGameTests {
     @GameTest(structure = "fabric-gametest-api-v1:empty", maxTicks = 1000000)
     public void loadedChunkRoundTrip(GameTestHelper test) {
         org.spongepowered.asm.mixin.MixinEnvironment.getCurrentEnvironment().audit();
+        org.edtp.edb.adaptors.bluemap.BlueMapProbe.awaitReady(test, () ->
+            org.edtp.edb.adaptors.scalablelux.ScalableLuxProbe.run(test,
+                ChunkPos.unpack(ChunkPos.pack(test.absolutePos(new BlockPos(1, 2, 1)))), () ->
+                    org.edtp.edb.adaptors.chunky.ChunkyProbe.run(test, test.getLevel(),
+                        ChunkPos.unpack(ChunkPos.pack(test.absolutePos(new BlockPos(193, 2, 193)))),
+                        () -> loadedRoundTrip(test))));
+    }
+    private void loadedRoundTrip(GameTestHelper test) {
         blockEntityAdapters(test);
         var level = test.getLevel();
         BlockPos pos = test.absolutePos(new BlockPos(1, 2, 1));
         ChunkPos chunk = ChunkPos.unpack(ChunkPos.pack(pos));
         level.setBlockAndUpdate(pos, Blocks.DIAMOND_BLOCK.defaultBlockState());
+        var worldEdit = org.edtp.edb.adaptors.worldedit.WorldEditProbe.seed(test, pos);
+        var redstone = org.edtp.edb.adaptors.alternatecurrent.AlternateCurrentProbe.seed(test, pos);
+        var lighting = new org.edtp.edb.adaptors.scalablelux.ScalableLuxProbe.Snapshot[1];
         var oldChunk = level.getChunkAt(pos);
         if (C2meStorageProbe.probeGcFreeSerializerRuntimeRoundTrip(test, oldChunk))
             com.mojang.logging.LogUtils.getLogger().info("EDB verified C2ME gcFree serializer runtime NBT round trip");
         var outsidePos = pos.offset(16, 0, 0);
         var outsideChunk = level.getChunkAt(outsidePos);
+        var outsideCoordinates = outsideChunk.getPos();
+        // Keep this control chunk resident; a short-lived synchronous-load ticket
+        // may otherwise expire naturally while the restore pumps chunk unloading.
+        boolean forcedOutside = level.setChunkForced(outsideCoordinates.x(), outsideCoordinates.z(), true);
         var originalHolder = org.edtp.edb.adaptors.ModCompatibility.chunks(level).edb$holder(chunk.pack());
         String name = "roundtrip_" + UUID.randomUUID().toString().replace("-", "");
         var service = RegionBackupService.get(level.getServer());
@@ -53,6 +68,7 @@ public class RegionGameTests {
         service.requestBackup(name, selection, message -> {
             if (message.startsWith("EDB: simulation")) compatibility.begin(chunk);
             if (message.startsWith("Backup complete")) {
+                lighting[0] = org.edtp.edb.adaptors.scalablelux.ScalableLuxProbe.capture(level, pos);
                 observedAtCapture.set(queued.get() && asyncApplied.get());
                 compatibility.captured();
             }
@@ -62,20 +78,39 @@ public class RegionGameTests {
             test.assertTrue(observedAtCapture.get(), "Preparation must drain already queued vanilla work before capture");
             compatibility.resumed();
             level.setBlockAndUpdate(pos, Blocks.GOLD_BLOCK.defaultBlockState());
-            compatibility.latePlayerCheck(name, pos, () -> {
+            org.edtp.edb.adaptors.alternatecurrent.AlternateCurrentProbe.mutate(test, redstone);
+            servuxRestoreCheck(test, name, pos, () -> compatibility.latePlayerCheck(name, pos, () -> {
+                var serverCore = org.edtp.edb.adaptors.servercore.ServerCoreProbe.seed(test, level, chunk);
                 service.requestRestore(name, message -> {});
                 test.runAfterDelay(2, () -> {
                     test.assertTrue(service.status().startsWith("Restore complete"), service.status());
                     test.assertTrue(level.getBlockState(pos).is(Blocks.DIAMOND_BLOCK), "Restored block must come from backup");
                     test.assertTrue(level.getChunkAt(pos) != oldChunk, "Restore must use a new chunk instance");
                     test.assertTrue(level.getChunkAt(outsidePos) == outsideChunk, "Restoring a selection replaced an external chunk");
+                    if (forcedOutside) level.setChunkForced(outsideCoordinates.x(), outsideCoordinates.z(), false);
                     if (org.edtp.edb.adaptors.ModCompatibility.customChunks())
                         test.assertTrue(org.edtp.edb.adaptors.ModCompatibility.chunks(level).edb$holder(chunk.pack()) == originalHolder,
                             "C2ME parking must preserve the scheduler holder identity");
                     compatibility.restored();
+                    org.edtp.edb.adaptors.servercore.ServerCoreProbe.assertRefreshed(test, level, serverCore);
+                    org.edtp.edb.adaptors.scalablelux.ScalableLuxProbe.restored(test, lighting[0]);
+                    org.edtp.edb.adaptors.worldedit.WorldEditProbe.assertRestored(test, worldEdit);
+                    org.edtp.edb.adaptors.alternatecurrent.AlternateCurrentProbe.assertRestored(test, redstone);
+                    org.edtp.edb.adaptors.bluemap.BlueMapProbe.enqueueAndAssert(test, level, selection);
+                    var map = org.edtp.edb.adaptors.squaremap.SquaremapProbe.seed(level, chunk);
+                    org.edtp.edb.adaptors.squaremap.SquaremapProbe.enqueueOneChunk(level, chunk);
+                    org.edtp.edb.adaptors.squaremap.SquaremapProbe.assertQueued(test, map);
                     entityAndTickRoundTrip(test, pos, selection);
                 });
-            });
+            }));
+        });
+    }
+    private void servuxRestoreCheck(GameTestHelper test, String backup, BlockPos marker, Runnable next) {
+        var probe = org.edtp.edb.adaptors.servux.ServuxProbe.requestRestoreWithActiveTask(test.getLevel(), backup, marker);
+        if (probe == null) { next.run(); return; }
+        test.runAfterDelay(2, () -> {
+            org.edtp.edb.adaptors.servux.ServuxProbe.assertRestoreRejectedWithoutMutation(test, test.getLevel(), probe);
+            next.run();
         });
     }
     private void entityAndTickRoundTrip(GameTestHelper test, BlockPos pos, RegionSelection selection) {
@@ -84,6 +119,9 @@ public class RegionGameTests {
         tnt.setPos(pos.getX() + .5, pos.getY() + 1, pos.getZ() + .5); tnt.setNoGravity(true); tnt.setFuse(10000);
         tnt.tickCount = 123; level.addFreshEntity(tnt);
         extraExtrasFlag(tnt, true);
+        var clumps = org.edtp.edb.adaptors.clumps.ClumpsProbe.seed(test,
+            new BlockPos(selection.minX() * 16 + 4, pos.getY(), selection.minZ() * 16 + 4));
+        if (clumps != null) test.assertTrue(selection.contains(clumps.original().chunkPosition()), "Clumps fixture is outside the selection");
         UUID uuid = tnt.getUUID();
         level.scheduleTick(pos, Blocks.DIAMOND_BLOCK, 1000, TickPriority.HIGH);
         int[] savedAge = {-1}, restoredAge = {-2}; long[] savedDelay = {-1}, restoredDelay = {-2};
@@ -97,8 +135,10 @@ public class RegionGameTests {
         test.runAfterDelay(2, () -> {
             test.assertTrue(service.status().startsWith("Backup complete"), service.status());
             tnt.tickCount = 900;
+            org.edtp.edb.adaptors.clumps.ClumpsProbe.mutate(test, clumps);
             service.requestRestore(name, message -> {
                 if (message.startsWith("Restore complete")) {
+                    org.edtp.edb.adaptors.clumps.ClumpsProbe.assertRestored(test, clumps);
                     var restored = level.getEntity(uuid);
                     restoredAge[0] = restored == null ? -999 : restored.tickCount;
                     restoredDelay[0] = ((LevelChunkTicks<?>) level.getChunkAt(pos).getBlockTicks()).getAll().filter(t -> t.pos().equals(pos)).findFirst().orElseThrow().triggerTick() - level.getGameTime();
@@ -110,6 +150,7 @@ public class RegionGameTests {
                 test.assertTrue(savedDelay[0] == restoredDelay[0], "Scheduled tick delay must survive restoration");
                 test.assertTrue(level.getEntity(uuid) != tnt, "Entity must reload as a new instance");
                 extraExtrasFlag((PrimedTnt) level.getEntity(uuid), false);
+                org.edtp.edb.adaptors.clumps.ClumpsProbe.cleanup(test, clumps);
                 fakePlayerRoundTrip(test, pos, () -> largeUnloadedRoundTrip(test, pos));
             });
         });

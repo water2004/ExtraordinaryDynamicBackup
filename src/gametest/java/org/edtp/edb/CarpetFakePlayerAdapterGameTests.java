@@ -236,6 +236,7 @@ public final class CarpetFakePlayerAdapterGameTests {
     }
 
     private static ServerPlayer spawnFake(ServerLevel level, UUID uuid, String name, BlockPos pos) throws Exception {
+        org.edtp.edb.adaptors.luckperms.LuckPermsProbe.preload(uuid, name);
         GameProfile profile = new GameProfile(uuid, name);
         ClientInformation info = ClientInformation.createDefault();
         Class<?> fakeClass = Class.forName("carpet.patches.EntityPlayerMPFake");

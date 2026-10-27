@@ -163,7 +163,10 @@ final class RegionStressTests {
     }
     private void complete() {
         try {
-            var path = java.nio.file.Path.of("edb-stress-" + System.getProperty("edb.test.profile", "vanilla").replace(',', '_') + ".csv");
+            String profile = System.getProperty("edb.test.profile", "vanilla");
+            String report = profile.length() > 120 ? "mods-" + Integer.toUnsignedString(profile.hashCode(), 16) : profile.replace(',', '_');
+            var path = java.nio.file.Path.of("edb-stress-" + report + ".csv");
+            java.nio.file.Files.writeString(java.nio.file.Path.of("edb-stress-" + report + ".profile.txt"), profile);
             measurements.add("total,0," + (System.nanoTime() - started) / 1000000 + ",0");
             measurements.addFirst("operation,maintenance_frames,elapsed_ms,max_frame_ms");
             java.nio.file.Files.write(path, measurements);

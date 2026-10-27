@@ -88,6 +88,166 @@
       "url": "https://cdn.modrinth.com/data/2O3YTVOd/versions/qTP1zKGB/carpet-extra-extras-26.3-1.5.0.jar",
       "hashAlgorithm": "SHA512",
       "hash": "8e8514d81c2c7caefc33aafaa38f06fefc587ae8cc4b82bf222d18b5bc5bd056ac1c73b085460be57ddcdda47e7e54bacc10dbcaa175533b881b5ebba98e3dda"
+    },
+    "servux": {
+      "version": "0.12.2",
+      "versionId": "azA4UG3T",
+      "filename": "servux-fabric-26.3-0.12.2.jar",
+      "url": "https://cdn.modrinth.com/data/zQhsx8KF/versions/azA4UG3T/servux-fabric-26.3-0.12.2.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "ea630371c61502b2787fbdfc3c94f6bf218c7ca20e1579682af4122e431c538f8b11d239acb16f79203fa1d1d8e6d8479673e28d1432effa843729c0280208bc"
+    },
+    "ferrite-core": {
+      "version": "9.0.0-fabric",
+      "versionId": "d5ddUdiB",
+      "filename": "ferritecore-9.0.0-fabric.jar",
+      "url": "https://cdn.modrinth.com/data/uXXizFIs/versions/d5ddUdiB/ferritecore-9.0.0-fabric.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "d81fa97e11784c19d42f89c2f433831d007603dd7193cee45fa177e4a6a9c52b384b198586e04a0f7f63cd996fed713322578bde9a8db57e1188854ae5cbe584"
+    },
+    "servercore": {
+      "version": "1.5.20+26.3",
+      "versionId": "LCG1Bm84",
+      "filename": "servercore-fabric-1.5.20+26.3.jar",
+      "url": "https://cdn.modrinth.com/data/4WWQxlQP/versions/LCG1Bm84/servercore-fabric-1.5.20%2B26.3.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "abe1f806ea587971faf7de826e18b07314a4a9e690f64a4c3a54e7f61c3e6f4792633b13a917252bd8de154cec39da6619110d83799cf533450c5b4cac7a8448"
+    },
+    "krypton": {
+      "version": "0.3.2",
+      "versionId": "UugdIYJw",
+      "filename": "krypton-0.3.2.jar",
+      "url": "https://cdn.modrinth.com/data/fQEb0iXm/versions/UugdIYJw/krypton-0.3.2.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "d1d57ebd41395b75b01f130cd9503eb8d208212424a399ff9f367f50be8fbc1c6472442b33c686e777c3148f6a609520e8fb732c755157c358cb207fd4d1123a"
+    },
+    "alternate-current": {
+      "version": "mc26.3-1.9.0",
+      "versionId": "nSBWPz6x",
+      "filename": "alternate-current-mc26.3-1.9.0.jar",
+      "url": "https://cdn.modrinth.com/data/r0v8vy1s/versions/nSBWPz6x/alternate-current-mc26.3-1.9.0.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "347fa8d0338a7e113c0cde70306d05037dbf9fc1e33c476159b4f5cf7b4fce8d3798d820ebf0e0dedd8450417802cb3a030bdcbecaf509961a83b2e43a469ad5"
+    },
+    "chunky": {
+      "version": "1.5.3",
+      "versionId": "4Eotm6ov",
+      "filename": "Chunky-Fabric-1.5.3.jar",
+      "url": "https://cdn.modrinth.com/data/fALzjamp/versions/4Eotm6ov/Chunky-Fabric-1.5.3.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "b83bfe7b218d0aa6232af977ae741dc1f82b10e50cd12bb759f65cf416b8b62beccb543e587ef0b9670abe03815660f8e091bc6823624d65cf07300571573516"
+    },
+    "spark": {
+      "version": "1.10.187-fabric",
+      "versionId": "e3hsPc1o",
+      "filename": "spark-1.10.187-fabric.jar",
+      "url": "https://cdn.modrinth.com/data/l6YH9Als/versions/e3hsPc1o/spark-1.10.187-fabric.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "c74bf5d5a16b2445ec6ea717eac756412b272a8015e91f91a7bf5a27e6f2f99c4a11878d434510f941f37b0344b3a7d1ba0dd6c34e80642762c48fb6e9a93894"
+    },
+    "syncmatica": {
+      "version": "0.3.20",
+      "versionId": "uT7TJ2Wp",
+      "filename": "syncmatica-fabric-26.3-0.3.20.jar",
+      "url": "https://cdn.modrinth.com/data/bfneejKo/versions/uT7TJ2Wp/syncmatica-fabric-26.3-0.3.20.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "7eb067b457123a221be27f1a41ea2480b8380ac07d3aba4d963343405b83ccfba26f8c292c680e48b8d52b97ddb37fca4ebd8e57e86c5ab89af58f3d229fafaa"
+    },
+    "scalablelux": {
+      "version": "0.3.0-alpha.0.6+26.3",
+      "versionId": "g4eqNSKd",
+      "filename": "ScalableLux-fabric-mc26.3-0.3.0-alpha.0.6-all.jar",
+      "url": "https://cdn.modrinth.com/data/Ps1zyz6x/versions/g4eqNSKd/ScalableLux-fabric-mc26.3-0.3.0-alpha.0.6-all.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "ded5a939fb20ab81c1f33b147ca9b98050773dbb28dff16df939c7d567b626809522994ec8dbfb99e7f498dc6a4e62f25e141a87d18efb43f73fc5ad1569ccc9"
+    },
+    "clumps": {
+      "version": "26.3.2",
+      "versionId": "J4I1wxJZ",
+      "filename": "Clumps-fabric-26.3-26.3.2.jar",
+      "url": "https://cdn.modrinth.com/data/Wnxd13zP/versions/J4I1wxJZ/Clumps-fabric-26.3-26.3.2.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "8c166ae97e1999d0f213d0a181d6ef87b99648016c92c9aa1414d2c2e24364b12549569cd7e247a3d675df703ae6a8a88fc175d3f527818c710578408508c8ab"
+    },
+    "bluemap": {
+      "version": "5.29-fabric",
+      "versionId": "SX74rxzP",
+      "filename": "bluemap-5.29-fabric.jar",
+      "url": "https://cdn.modrinth.com/data/swbUV1cr/versions/SX74rxzP/bluemap-5.29-fabric.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "032a96971437e43a3722d8d6c026aeb9837117e1a56521d017a68fce8bb5630ceffd98454672b9d6c589a1008fcd2ab4cd48f4af8fadf08755313b1e326bedb1"
+    },
+    "squaremap": {
+      "version": "1.4.3",
+      "versionId": "YPMtDS9D",
+      "filename": "squaremap-fabric-mc26.3-1.4.3.jar",
+      "url": "https://cdn.modrinth.com/data/PFb7ZqK6/versions/YPMtDS9D/squaremap-fabric-mc26.3-1.4.3.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "c20e76d91a1c3a26d1985240c4199b6955180a6fbaf2f13bef25e06dd9c2c01df22d51a845f4bd2d36aa953559c29532ec8c3390432fb3faa34e73bff00d8533"
+    },
+    "worldedit": {
+      "version": "7.4.6",
+      "versionId": "ByRNkO83",
+      "filename": "worldedit-mod-7.4.6.jar",
+      "url": "https://cdn.modrinth.com/data/1u6JkXh5/versions/ByRNkO83/worldedit-mod-7.4.6.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "3bc4fbf2ee36746f54dc036283b3ded3f17fd91991eaa1ead76b0861aa902cd7ffbc0962db0065d8690e46d1c4890847ebe97ee0b4e36a979b41168c30586ee4"
+    },
+    "luckperms": {
+      "version": "v5.5.85-fabric",
+      "versionId": "DzQPkkXY",
+      "filename": "LuckPerms-Fabric-5.5.85.jar",
+      "url": "https://cdn.modrinth.com/data/Vebnzrzj/versions/DzQPkkXY/LuckPerms-Fabric-5.5.85.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "37de9e16272b6bbf82f422ddf012fa810d32c617c5621919157b662b4edfe956a870c5bc3ca4b05f32c90d7135f0ac2580ea16cd7c481c26a04778f639c3f89c"
+    },
+    "simple-voice-chat": {
+      "version": "fabric-2.6.26+26.3",
+      "versionId": "cZm965sW",
+      "filename": "voicechat-fabric-2.6.26+26.3.jar",
+      "url": "https://cdn.modrinth.com/data/9eGKb6K1/versions/cZm965sW/voicechat-fabric-2.6.26%2B26.3.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "738ab57f04ad141af9407484256772b4f7f5e95fdf8edf6f134f6a057085eb2ddf4b5c7da88714e3e94a6e4ae86a8b985071a4c333485047ee52a9706845a100"
+    },
+    "fabricproxy-lite": {
+      "version": "v2.12.0",
+      "versionId": "CsEpiziv",
+      "filename": "FabricProxy-Lite-2.12.0.jar",
+      "url": "https://cdn.modrinth.com/data/8dI2tmqs/versions/CsEpiziv/FabricProxy-Lite-2.12.0.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "b479c3ed1fe83929cad40e5c925ae2702da879b88a0271a24266cd21ecc037953f347cbe61ac7b7334e087544ee2ce5bf1f041fc3e64f50474404ad564c146f7"
+    },
+    "ledger": {
+      "version": "1.3.25",
+      "versionId": "pxv5cN0d",
+      "filename": "ledger-1.3.25.jar",
+      "url": "https://cdn.modrinth.com/data/LVN9ygNV/versions/pxv5cN0d/ledger-1.3.25.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "f32e44728da225ddadf899f26a0892aa13555b56dbbb44278e1c40a8856d9b40d5cb7dd4af81447631d25de3ad532f95c8a5b98e388d2fa141ad2da7ec8c2d49"
+    },
+    "fabric-language-kotlin": {
+      "version": "1.14.2+kotlin.2.4.21",
+      "versionId": "SKW1BTL3",
+      "filename": "fabric-language-kotlin-1.14.2+kotlin.2.4.21.jar",
+      "url": "https://cdn.modrinth.com/data/Ha28R6CL/versions/SKW1BTL3/fabric-language-kotlin-1.14.2%2Bkotlin.2.4.21.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "7fb475c4a7e7bdf8d0aca4b5798a58a354c51443d5b1fbde3e8cf34dfbf7191ef4238b5f07d08ec9490ec180b371624523326c3ad45d4ed2b2be541de9407e5d"
+    },
+    "debugify": {
+      "version": "26.3.0.0",
+      "versionId": "FMaS2nZn",
+      "filename": "debugify-26.3.0.0.jar",
+      "url": "https://cdn.modrinth.com/data/QwxR6Gcd/versions/FMaS2nZn/debugify-26.3.0.0.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "921a2f31531990df93af4099cd7bece26886b7fc38021642ae32032e435b8686a0ee208dba4eb1ed0057e6e0b3332f990fb77778781afccfe0e52d28dfb07c26"
+    },
+    "async": {
+      "version": "0.2.5+alpha-26.3",
+      "versionId": "gcduhoHv",
+      "filename": "async-fabric-0.2.5+alpha-26.3.jar",
+      "url": "https://cdn.modrinth.com/data/vEC2jm6I/versions/gcduhoHv/async-fabric-0.2.5%2Balpha-26.3.jar",
+      "hashAlgorithm": "SHA512",
+      "hash": "dc7662973c1493ccd29ccf390583192bc49d33782dfd5245002427d160a2752fb6b4b09e9e1c7a3dd0f3f373454ed0ea4f9ae9a23752994dcb389662506489dc"
     }
   }
 }

@@ -18,12 +18,23 @@ final class CompatibilityProbes {
     private CompletableFuture<?> previousLoad, deferredLoad;
     private ServerPlayer tpcPlayer;
     private CompletableFuture<?> wild;
+    private final org.edtp.edb.adaptors.async.AsyncProbe asyncProbe;
+    private final org.edtp.edb.adaptors.servux.ServuxProbe.TaskProbe servux;
     CompatibilityProbes(GameTestHelper test, ChunkPos pos) {
         this.test = test;
+        asyncProbe = new org.edtp.edb.adaptors.async.AsyncProbe(test, pos);
+        servux = org.edtp.edb.adaptors.servux.ServuxProbe.installTask(true);
+        org.edtp.edb.adaptors.servux.ServuxProbe.watchMaintenance(test.getLevel().getServer(), servux);
         if (loaded("vmp")) previousLoad = load(new ChunkPos(pos.x() + 32, pos.z() + 32));
         if (loaded("teleport_commands_fabric")) {
             try {
-                tpcPlayer = test.makeMockServerPlayerInLevel();
+                var profile = new com.mojang.authlib.GameProfile(UUID.randomUUID(), "edb_tpc_probe");
+                org.edtp.edb.adaptors.luckperms.LuckPermsProbe.preload(profile.id(), profile.name());
+                var cookie = net.minecraft.server.network.CommonListenerCookie.createInitial(profile, false);
+                tpcPlayer = new ServerPlayer(test.getLevel().getServer(), test.getLevel(), profile, cookie.clientInformation());
+                var connection = new net.minecraft.network.Connection(net.minecraft.network.protocol.PacketFlow.SERVERBOUND);
+                new io.netty.channel.embedded.EmbeddedChannel(connection);
+                test.getLevel().getServer().getPlayerList().placeNewPlayer(connection, tpcPlayer, cookie);
                 tpcPlayer.teleportTo(test.getLevel(), (pos.x() + 32) * 16 + 8, 65, (pos.z() + 32) * 16 + 8, Set.of(), 0, 0, true);
                 var request = Class.forName("org.AndrewElizabeth.teleportcommandsfabric.core.teleport.types.wild.WildRequest");
                 Object service = Class.forName("org.AndrewElizabeth.teleportcommandsfabric.TeleportCommands").getField("WILD_SERVICE").get(null);
@@ -58,6 +69,7 @@ final class CompatibilityProbes {
         } catch (ReflectiveOperationException e) { throw new RuntimeException(e); }
     }
     void captured() {
+        asyncProbe.captured();
         if (wild != null) test.assertTrue(!wild.isDone(), "Backup cancelled a TPC request");
         if (previousLoad != null) {
             test.assertTrue(previousLoad.isDone() && !previousLoad.isCompletedExceptionally(), "Previous VMP load was not drained");
@@ -71,6 +83,8 @@ final class CompatibilityProbes {
         test.assertTrue(playerTicks.get() == 1 && actions.get() == 1, "TIS did not resume retained actions exactly once");
     }
     void resumed() {
+        org.edtp.edb.adaptors.servux.ServuxProbe.assertMaintenancePaused(test, servux);
+        if (servux != null) servux.remove();
         if (deferredLoad != null) test.assertTrue(deferredLoad.isDone() && !deferredLoad.isCompletedExceptionally(), "Deferred VMP request did not resume");
     }
     void restored() {
