@@ -61,7 +61,7 @@ final class CompatibilityProbes {
         if (wild != null) test.assertTrue(!wild.isDone(), "Backup cancelled a TPC request");
         if (previousLoad != null) {
             test.assertTrue(previousLoad.isDone() && !previousLoad.isCompletedExceptionally(), "Previous VMP load was not drained");
-            test.assertTrue(!org.edtp.edb.adaptors.VmpAsyncLoads.busy(test.getLevel().getServer()), "VMP ticket cleanup still pending");
+            test.assertTrue(!org.edtp.edb.adaptors.vmp.VmpAsyncLoads.busy(test.getLevel().getServer()), "VMP ticket cleanup still pending");
             test.assertTrue(!deferredLoad.isDone(), "Deferred VMP load ran before the snapshot completed");
         }
         if (tis == null) return;

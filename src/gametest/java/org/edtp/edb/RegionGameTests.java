@@ -28,16 +28,17 @@ public class RegionGameTests {
     @GameTest(structure = "fabric-gametest-api-v1:empty", maxTicks = 1000000)
     public void loadedChunkRoundTrip(GameTestHelper test) {
         org.spongepowered.asm.mixin.MixinEnvironment.getCurrentEnvironment().audit();
-        if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("c2me")) {
-            rejectC2me(test);
-            return;
-        }
         blockEntityAdapters(test);
         var level = test.getLevel();
         BlockPos pos = test.absolutePos(new BlockPos(1, 2, 1));
         ChunkPos chunk = ChunkPos.unpack(ChunkPos.pack(pos));
         level.setBlockAndUpdate(pos, Blocks.DIAMOND_BLOCK.defaultBlockState());
         var oldChunk = level.getChunkAt(pos);
+        if (C2meStorageProbe.probeGcFreeSerializerRuntimeRoundTrip(test, oldChunk))
+            com.mojang.logging.LogUtils.getLogger().info("EDB verified C2ME gcFree serializer runtime NBT round trip");
+        var outsidePos = pos.offset(16, 0, 0);
+        var outsideChunk = level.getChunkAt(outsidePos);
+        var originalHolder = org.edtp.edb.adaptors.ModCompatibility.chunks(level).edb$holder(chunk.pack());
         String name = "roundtrip_" + UUID.randomUUID().toString().replace("-", "");
         var service = RegionBackupService.get(level.getServer());
         var selection = RegionSelection.of(level.dimension().identifier().toString(), chunk.x(), chunk.z(), chunk.x(), chunk.z());
@@ -67,6 +68,10 @@ public class RegionGameTests {
                     test.assertTrue(service.status().startsWith("Restore complete"), service.status());
                     test.assertTrue(level.getBlockState(pos).is(Blocks.DIAMOND_BLOCK), "Restored block must come from backup");
                     test.assertTrue(level.getChunkAt(pos) != oldChunk, "Restore must use a new chunk instance");
+                    test.assertTrue(level.getChunkAt(outsidePos) == outsideChunk, "Restoring a selection replaced an external chunk");
+                    if (org.edtp.edb.adaptors.ModCompatibility.customChunks())
+                        test.assertTrue(org.edtp.edb.adaptors.ModCompatibility.chunks(level).edb$holder(chunk.pack()) == originalHolder,
+                            "C2ME parking must preserve the scheduler holder identity");
                     compatibility.restored();
                     entityAndTickRoundTrip(test, pos, selection);
                 });
@@ -105,7 +110,51 @@ public class RegionGameTests {
                 test.assertTrue(savedDelay[0] == restoredDelay[0], "Scheduled tick delay must survive restoration");
                 test.assertTrue(level.getEntity(uuid) != tnt, "Entity must reload as a new instance");
                 extraExtrasFlag((PrimedTnt) level.getEntity(uuid), false);
-                largeUnloadedRoundTrip(test, pos);
+                fakePlayerRoundTrip(test, pos, () -> largeUnloadedRoundTrip(test, pos));
+            });
+        });
+    }
+    private void fakePlayerRoundTrip(GameTestHelper test, BlockPos pos, Runnable next) {
+        if (!net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("carpet")) { next.run(); return; }
+        var level = test.getLevel(); var service = RegionBackupService.get(level.getServer());
+        var chunk = ChunkPos.unpack(ChunkPos.pack(pos));
+        var fixture = new CarpetFakePlayerAdapterGameTests.Fixture[1];
+        try {
+            fixture[0] = CarpetFakePlayerAdapterGameTests.setup(level, new BlockPos(chunk.getMinBlockX() + 1, pos.getY() + 3, chunk.getMinBlockZ() + 1));
+        } catch (Exception error) { throw new RuntimeException(error); }
+        String name = "fake_" + UUID.randomUUID().toString().replace("-", "");
+        var failure = new java.util.concurrent.atomic.AtomicReference<Throwable>();
+        CompoundTag[] gcaPending = {null};
+        UUID gcaFake = fixture[0].fakes().stream().filter(fake -> fixture[0].entityUuids().get(1).equals(fake.vehicle())).findFirst().orElseThrow().uuid();
+        service.requestBackup(name, fixture[0].region(), message -> {
+            if (message.startsWith("EDB: simulation") && net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("gca")) {
+                try { gcaPending[0] = org.edtp.edb.adaptors.gca.GcaAutoFishAdapterGameTests.enqueueAndCaptureAtBackupStart(level.getServer().getPlayerList().getPlayer(gcaFake)); }
+                catch (Throwable error) { failure.set(error); }
+            }
+            if (message.startsWith("Backup complete")) {
+                try { fixture[0] = CarpetFakePlayerAdapterGameTests.checkpoint(level, fixture[0]); }
+                catch (Throwable error) { failure.set(error); }
+            }
+        });
+        test.runAfterDelay(2, () -> {
+            test.assertTrue(service.status().startsWith("Backup complete"), service.status());
+            if (failure.get() != null) throw new RuntimeException(failure.get());
+            UUID extraFake = CarpetFakePlayerAdapterGameTests.mutate(level, fixture[0]);
+            service.requestRestore(name, message -> {
+                if (message.startsWith("Restore complete")) {
+                    try {
+                        CarpetFakePlayerAdapterGameTests.assertRestored(test, level, fixture[0]);
+                        if (gcaPending[0] != null) org.edtp.edb.adaptors.gca.GcaAutoFishAdapterGameTests.assertPendingDelays(test, level.getServer().getPlayerList().getPlayer(gcaFake), gcaPending[0]);
+                    }
+                    catch (Throwable error) { failure.set(error); }
+                }
+            });
+            test.runAfterDelay(2, () -> {
+                test.assertTrue(service.status().startsWith("Restore complete"), service.status());
+                if (failure.get() != null) throw new RuntimeException(failure.get());
+                test.assertTrue(level.getServer().getPlayerList().getPlayer(extraFake) == null, "Fake created after backup survived restoration");
+                CarpetFakePlayerAdapterGameTests.cleanup(level, fixture[0]);
+                next.run();
             });
         });
     }
@@ -123,7 +172,7 @@ public class RegionGameTests {
             test.assertTrue(storage.getChunkToSend(stored.pack()) == null, "Raw write must not load a chunk");
             RegionSelection selection = RegionSelection.of(level.dimension().identifier().toString(), stored.x(), stored.z(), absent.x(), absent.z());
             test.assertTrue(selection.size() == 10000, "Scale test must cover 100 x 100 chunks");
-            int loadedBefore = ((RegionAccess.Chunks) storage).edb$holders().size();
+            int loadedBefore = org.edtp.edb.adaptors.ModCompatibility.chunks(level).edb$holders().size();
             String name = "large_" + UUID.randomUUID().toString().replace("-", "");
             long[] frozenTime = {-1}, finalTime = {-2}, frozenEvents = {-1, -1};
             service.requestBackup(name, selection, message -> {
@@ -141,7 +190,7 @@ public class RegionGameTests {
                 test.assertTrue(service.status().startsWith("Backup complete"), service.status());
                 test.assertTrue(frozenTime[0] == finalTime[0], "World game time advanced during maintenance");
                 test.assertTrue(service.metrics().frames() > 100, "Large capture must yield across server frames");
-                test.assertTrue(((RegionAccess.Chunks) storage).edb$holders().size() <= loadedBefore, "Backup loaded new chunks");
+                test.assertTrue(org.edtp.edb.adaptors.ModCompatibility.chunks(level).edb$holders().size() <= loadedBefore, "Backup loaded new chunks");
                 terrain.putInt("edb_test_value", 99);
                 CompletableFuture<Void> mutate = CompletableFuture.allOf(storage.write(stored, terrain), storage.write(absent, terrain.copy()));
                 after(test, mutate, () -> {
@@ -234,7 +283,8 @@ public class RegionGameTests {
                     test.assertTrue(service.status().startsWith("EDB failed without applying"), service.status());
                     test.assertTrue(level.getChunkAt(pos) == before, "Invalid backup unloaded live chunks");
                     test.assertTrue(level.getBlockState(pos).is(Blocks.GOLD_BLOCK), "Invalid backup changed the world");
-                    if (Boolean.getBoolean("edb.test.stress")) RegionStressTests.run(test); else test.succeed();
+                    if (Boolean.getBoolean("edb.test.stress")) RegionStressTests.run(test);
+                    else C2meStorageProbe.probeSwallowedStorageFailure(test, test::succeed);
                 });
             });
         });
@@ -250,18 +300,5 @@ public class RegionGameTests {
             if (seed) field.setBoolean(tnt, true);
             else if (!field.getBoolean(tnt)) throw new AssertionError("Extra Extras lazy TNT flag was lost");
         } catch (ReflectiveOperationException e) { throw new RuntimeException(e); }
-    }
-    private void rejectC2me(GameTestHelper test) {
-        var service = RegionBackupService.get(test.getLevel().getServer());
-        var region = RegionSelection.of(test.getLevel().dimension().identifier().toString(), 0, 0, 0, 0);
-        for (boolean restore : new boolean[]{false, true}) {
-            boolean rejected = false;
-            try {
-                if (restore) service.requestRestore("unsupported_c2me", message -> {});
-                else service.requestBackup("unsupported_c2me", region, message -> {});
-            } catch (IllegalStateException error) { rejected = error.getMessage().contains("C2ME"); }
-            test.assertTrue(rejected && !service.active(), "C2ME must be rejected before starting maintenance");
-        }
-        test.succeed();
     }
 }

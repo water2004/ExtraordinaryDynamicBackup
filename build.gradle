@@ -101,6 +101,13 @@ tasks.named('runEdbDedicatedTest', JavaExec) {
             throw new GradleException('The isolated dedicated test server requires acceptance of the Minecraft EULA in build/run/edbDedicatedTest/eula.txt')
         }
         file('build/run/edbDedicatedTest/edb-test-result.txt').delete()
+        // A previous test may have saved its fixture entities, even when it failed.
+        // Keep those worlds for inspection and give every invocation a fresh world.
+        def propertiesFile = file('build/run/edbDedicatedTest/server.properties')
+        def serverProperties = new Properties()
+        if (propertiesFile.isFile()) propertiesFile.withInputStream { serverProperties.load(it) }
+        serverProperties.setProperty('level-name', 'edb-test-' + UUID.randomUUID().toString())
+        propertiesFile.withOutputStream { serverProperties.store(it, 'Isolated EDB dedicated test') }
     }
     doLast {
         def result = file('build/run/edbDedicatedTest/edb-test-result.txt')

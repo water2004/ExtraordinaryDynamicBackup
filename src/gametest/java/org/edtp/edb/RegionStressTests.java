@@ -152,7 +152,7 @@ final class RegionStressTests {
         after(CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)), () -> {
             for (int i = offset; i < end; i++) {
                 test.assertTrue(futures.get(i - offset).join().orElseThrow().getIntOr("edb_stress", -2) == i, "Disk chunk mismatch " + i);
-                test.assertTrue(((RegionAccess.Chunks) level.getChunkSource().chunkMap).edb$holder(disk.at(i).pack()) == null, "Disk stress loaded terrain");
+                test.assertTrue(org.edtp.edb.adaptors.ModCompatibility.chunks(level).edb$holder(disk.at(i).pack()) == null, "Disk stress loaded terrain");
             }
             if (end < disk.size()) verifyDisk(end); else complete();
         });
@@ -168,7 +168,7 @@ final class RegionStressTests {
             measurements.addFirst("operation,maintenance_frames,elapsed_ms,max_frame_ms");
             java.nio.file.Files.write(path, measurements);
         } catch (java.io.IOException e) { throw new RuntimeException(e); }
-        test.succeed();
+        C2meStorageProbe.probeSwallowedStorageFailure(test, test::succeed);
     }
     private void after(CompletableFuture<?> future, Runnable action) {
         test.runAfterDelay(1, () -> { if (future.isDone()) { future.join(); action.run(); } else after(future, action); });
