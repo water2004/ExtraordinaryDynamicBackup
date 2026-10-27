@@ -227,13 +227,16 @@ public class RegionGameTests {
             int loadedBefore = org.edtp.edb.adaptors.ModCompatibility.chunks(level).edb$holders().size();
             String name = "large_" + UUID.randomUUID().toString().replace("-", "");
             long[] frozenTime = {-1}, finalTime = {-2}, frozenEvents = {-1, -1};
+            MaintenancePacingProbe.Sample[] pacing = new MaintenancePacingProbe.Sample[1];
             service.requestBackup(name, selection, message -> {
                 if (message.startsWith("EDB: simulation")) {
                     frozenTime[0] = level.getGameTime();
+                    pacing[0] = MaintenancePacingProbe.start();
                     frozenEvents[0] = startEvents; frozenEvents[1] = endEvents;
                 }
                 if (message.startsWith("Backup complete")) {
                     finalTime[0] = level.getGameTime();
+                    MaintenancePacingProbe.checkConnections(test, pacing[0]);
                     test.assertTrue(startEvents == frozenEvents[0] && endEvents == frozenEvents[1],
                         "Mod server tick callbacks ran inside the maintenance barrier");
                 }
@@ -254,7 +257,8 @@ public class RegionGameTests {
                         after(test, CompletableFuture.allOf(readStored, readAbsent), () -> {
                             test.assertTrue(readStored.join().orElseThrow().getIntOr("edb_test_value", 0) == 42, "Unloaded terrain payload was not restored");
                             test.assertTrue(readAbsent.join().isEmpty(), "Originally absent chunk must be deleted");
-                            delayedTicks(test, stored, sample, () -> corruptBackupIsRejected(test, sample));
+                            MaintenancePacingProbe.checkResume(test,
+                                    () -> delayedTicks(test, stored, sample, () -> corruptBackupIsRejected(test, sample)));
                         });
                     });
                 });
