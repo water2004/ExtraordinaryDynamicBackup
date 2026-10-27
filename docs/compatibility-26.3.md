@@ -2,6 +2,8 @@
 
 记录日期：2026-10-27。Windows x64、Microsoft OpenJDK 25.0.2、Fabric Loader 0.19.5、Fabric API 0.162.0+26.3。测试使用独立 Gradle 运行目录，没有更改 Orbit 用户实例。
 
+本轮追加了交互/权限回归，并修复 ECO 与 Async 并用时的碰撞表借用锁缺口。旧扩展日志中的功能 PASS 曾伴随停服异常；最新复测已同时通过功能、压力及正常停服检查，见[本轮回归报告](../tests/results/26.3-command-ux.md)。
+
 ## 已执行的范围
 
 以下 11 个模组在**同一进程**加载并完成集成测试和压力场景。固定下载地址及 SHA512/SHA256 存在 [`tests/compatibility-lock.json`](../tests/compatibility-lock.json)。
