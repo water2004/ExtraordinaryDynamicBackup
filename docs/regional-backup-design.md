@@ -9,12 +9,13 @@
 | 文件/目录 | 实际职责 |
 | --- | --- |
 | `ExtraordinaryDynamicBackup.java` | 注册命令、释放服务器生命周期资源 |
-| `edb/command/` | 命令树、异步目录查询、恢复预览与限时确认 |
+| `edb/command/` | 区域层级命令、异步目录查询、恢复/删除共用的限时确认 |
 | `edb/config/BackupConfig.java` | OP 等级配置、严格校验和动态权限判断 |
 | `edb/region/RegionSelection.java` | 同维度、完整高度、闭区间区块选区；不保存全区块对象列表 |
 | `edb/region/RegionRepository.java` | 按世界持久化命名区域定义，原子替换 JSON 文件 |
 | `edb/operation/RegionBackupService.java` | 主线程状态机、存储 Future、分批捕获/预检/替换、错误与进度处理 |
 | `edb/storage/SnapshotIO.java` | 文件布局、压缩 NBT、存在标记、世界标识、完成发布 |
+| `edb/storage/BackupRepository.java` | 区域内编号、备注、按时间列表、单个及级联删除、路径校验 |
 | `edb/runtime/RuntimeStateCodec.java` | 计划刻、方块事件、实体/方块实体顺序、时间重基 |
 | `edb/bridge/RegionAccess.java` | 仅供当前 26.3 实现使用的窄访问桥接接口 |
 | `edb/ui/OperationMessages.java` | 服务端文本、阶段进度、整服暂停与结束通知 |
@@ -36,19 +37,26 @@
 ```text
 <世界>/edb/
   world-id.txt
-  regions.json             # 可复用区域定义，不是快照数据
-  backups/
-    <name>/
-      manifest.nbt
-      runtime.nbt
-      chunks/
-        <chunkX>_<chunkZ>.nbt
-    .<name>-<uuid>.partial/
+  regions.json
+  regions/
+    <region>/
+      sequence.txt         # 已分配编号；删除单个备份不回退
+      backups/
+        <id>/
+          manifest.nbt
+          runtime.nbt
+          chunks/
+            <chunkX>_<chunkZ>.nbt
+        .<id>-<uuid>.partial/
 ```
 
 每个区块记录分别携带 `terrain_present`、`entities_present`、`poi_present` 与存在时的 NBT。缺失是快照的一部分：恢复时将对应当前记录清除，不能用“跳过不存在文件”代替。
 
-`manifest.nbt` 记录格式、Minecraft/DataVersion、世界标识、维度、选区与捕获时间。`runtime.nbt` 保存选区方块事件及计划刻顺序范围。三路 NBT 放在同一个区块记录中，避免只备份 terrain 的不完整结果。
+`manifest.nbt` 记录格式、Minecraft/DataVersion、世界标识、维度、选区、创建时间、备注与捕获世界刻。`runtime.nbt` 保存选区方块事件及计划刻顺序范围。三路 NBT 放在同一个区块记录中，避免只备份 terrain 的不完整结果。管理入口和文件归属统一按区域组织，不提供旧格式迁移。
+
+目录写操作在主线程先预留管理互斥，再到串行 catalog IO 队列执行；直到主线程回调才释放。操作排队、维护及失败暂停时不接受目录写操作；预留期间同样拒绝新的备份/恢复，防止删除与捕获、发布或读取相撞。创建备份分配编号后，在同一个主线程回调中释放预留并立即排队。管理操作不暂停世界模拟，也不在主线程递归删除文件。所有目录写操作使待确认操作失效。
+
+单删只处理该区域的指定编号；删区域递归清理其专属目录（包括未完成数据）后才删除定义，不扫描或删除别的区域。路径检查拒绝符号链接、目录联接和越界路径。磁盘失败时返回错误，区域定义保留以便重试；文件删除不是崩溃原子事务，失败可能已删除部分文件。损坏的编号备份仍在列表显示错误并允许预览删除。
 
 单个读取 NBT 的计量上限为 64 MiB；写出时也检查 NBT 大小。元数据和全部区块写完后才重命名发布目录；`.partial` 不属于可恢复备份。恢复中跨区块、跨 terrain/entities/poi 的替换不具备断电原子性。
 

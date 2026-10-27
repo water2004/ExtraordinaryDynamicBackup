@@ -6,23 +6,23 @@ Minecraft **26.3** 的 Fabric 区域热备份、热恢复原型。Java 25，包�
 
 ## 使用
 
-默认需要 **OP 3**。坐标均为**区块坐标**，两端包含在内、覆盖全部高度。输入 `/edb` 查看帮助。
+默认需要 **OP 3**。输入**方块 X/Z 坐标**，两端包含在内，自动扩展到完整区块、覆盖全部高度。输入 `/edb` 查看帮助。
 
 ```text
-/edb region create factory 0 0 99 99
-/edb backup test region factory
-/edb info test
-/edb restore test
-/edb restore test confirm
-/edb list
+/edb region create factory 0 0 1599 1599
+/edb region factory make 改造前的备份
+/edb region factory list
+/edb region factory show 1
+/edb region factory back 1
+/edb confirm
 /edb status
 ```
 
-仍支持直接坐标命令 `/edb backup test 0 0 99 99`。直接备份和区域创建使用命令所在维度，可用 `/execute in minecraft:the_nether run edb region create ...` 指定维度；通过区域名备份则使用定义中保存的维度。备份名、区域名限 1–64 位英文字母、数字、下划线或连字符；已有备份不会覆盖。
+所有备份归属于一个区域。创建区域使用命令所在维度，可用 `/execute in minecraft:the_nether run edb region create ...` 指定维度；备份使用区域保存的维度和范围。区域名限 1–64 位英文字母、数字、下划线或连字符。备份自动获得区域内递增编号，不再手动命名；备注可省略，支持含空格的中文文本，最多 256 字符。
 
-`/edb region list [页码]`、`info <区域名>`、`update <区域名> <x1> <z1> <x2> <z2>`、`remove <区域名>` 管理区域。区域定义保存在 `<世界>/edb/regions.json`；修改、删除定义不改变已有备份。
+`/edb region list [页码]` 列出区域；`/edb region factory show` 查看区域，`update <x1> <z1> <x2> <z2>` 修改以后备份的范围。`/edb region factory comment 1 新备注` 修改备份备注。**`/edb region factory delete 1` 删除一个备份；`/edb region factory delete` 删除整个区域及其全部备份。** 删除只影响备份文件，不改变当前世界。
 
-**`/edb restore <备份名>` 现在只预览，不会执行恢复。** 查看维度、边界与影响后，由同一操作者在 60 秒内执行 `/edb restore <备份名> confirm`；`/edb cancel` 取消待确认操作。恢复始终使用备份记录的原维度、原坐标。已经排队或开始执行的操作不支持中途取消。
+`back` 和两种 `delete` 均先预览，由同一操作者在 60 秒内执行 `/edb confirm`，或 `/edb abort` 取消。恢复始终使用备份记录的原维度和原坐标。已经排队或开始执行的操作不支持中途取消。旧命令树不保留别名，不提供旧格式迁移；旧数据由管理员自行处理。
 
 配置文件 `config/extraordinarydynamicbackup.json` 首次启动自动创建：
 
@@ -36,11 +36,11 @@ Minecraft **26.3** 的 Fabric 区域热备份、热恢复原型。Java 25，包�
 
 操作从 tick 末开始，**暂停整服模拟**，分帧准备和读写，期间维持连接。它并非让玩家照常游玩的无停顿备份。开始、完成、失败会在整服聊天中提示；阶段进度每五秒发送给操作者，并显示在在线玩家动作栏。进度表示当前阶段，不是总百分比。服务端控制台可查询 `edb status`。恢复前需让真实玩家离开选区，打开的容器会关闭。
 
-列表每页 8 项，备份名和区域名支持补全，聊天中的操作提示可填入命令；客户端无需安装本模组。完整命令说明、参考项目和交互边界见[命令与交互](docs/commands-and-ux.md)。
+列表每页 8 项。区域下的备份按时间倒序，直接显示编号、创建时间（含时区）与备注，并提供详情、恢复、删除按钮。区域名和本区域的备份编号支持补全；按钮填入命令后按回车提交，客户端无需安装本模组。完整说明及 Prime Backup 参考见[命令与交互](docs/commands-and-ux.md)。
 
 未加载位置直接读取、替换存档中的记录，不为备份生成区块。地形、实体、POI 的存在与缺失分别记录；恢复为缺失会清除后来产生的数据。每批最多 32 个区块 NBT，主线程采用约 8 ms 的软时间预算；排序、事件及 UUID 元数据另行保存。
 
-备份保存在 `<世界目录>/edb/backups/<名称>/`。先写 `.partial` 目录，全部完成后发布。`manifest.nbt` 是元数据，`runtime.nbt` 是方块事件与顺序信息，`chunks/x_z.nbt` 包含对应位置的三类存档数据。当前每次最多 65,536 区块，单个解压 NBT 上限 64 MiB。
+备份保存在 `<世界目录>/edb/regions/<区域>/backups/<编号>/`，区域定义仍在 `edb/regions.json`。先写 `.partial` 目录，全部完成后发布。`manifest.nbt` 包含时间、备注和范围等元数据，`runtime.nbt` 是方块事件与顺序信息，`chunks/x_z.nbt` 包含对应位置的三类存档数据。删除区域也会清理该区域的未完成目录。当前每次最多 65,536 区块，单个解压 NBT 上限 64 MiB。
 
 ## 当前边界
 

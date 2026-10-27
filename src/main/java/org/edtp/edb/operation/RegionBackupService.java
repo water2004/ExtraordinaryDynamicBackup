@@ -39,7 +39,9 @@ public final class RegionBackupService implements AutoCloseable {
     private static final int BATCH = 32;
     private static final long FRAME_NANOS = 8_000_000L;
     private enum Phase { IDLE, INIT, SETTLE, LIGHT, CAPTURE, VALIDATE, MASK, UNLOAD, DRAIN, APPLY, FLUSH, UNMASK, RELOAD, PUBLISH, FAILED }
-    private record Request(String name, RegionSelection region, boolean restore, SnapshotIO.Metadata expected, Consumer<String> reply) {}
+    private record Request(String name, String owner, String comment, RegionSelection region, boolean restore, SnapshotIO.Metadata expected, Consumer<String> reply) {
+        String label() { return owner == null ? name : owner + " #" + name; }
+    }
     private record Init(Path root, Path directory, SnapshotIO.Metadata metadata, CompoundTag runtime) {}
     private record BatchResult(long min, long max) {}
     private final MinecraftServer server;
@@ -49,6 +51,7 @@ public final class RegionBackupService implements AutoCloseable {
     private final java.util.concurrent.atomic.AtomicInteger pendingSigns = new java.util.concurrent.atomic.AtomicInteger();
     private volatile Phase phase = Phase.IDLE;
     private Request pending, request;
+    private boolean catalogMutation;
     private ServerLevel level;
     private RegionSelection region;
     private Path directory, root;
@@ -91,20 +94,34 @@ public final class RegionBackupService implements AutoCloseable {
     public boolean failed() { return phase == Phase.FAILED; }
     public void storageFailure(Throwable failure) { if (active) writeFailure = failure; }
     public void defer(Runnable task) { deferred.add(task); }
-    public void requestBackup(String name, RegionSelection selection, Consumer<String> reply) { enqueue(new Request(name, selection, false, null, reply)); }
+    public void requestBackup(String name, RegionSelection selection, Consumer<String> reply) { requestBackup(null, name, "", selection, reply); }
+    public void requestBackup(String owner, String name, String comment, RegionSelection selection, Consumer<String> reply) {
+        SnapshotIO.validateComment(comment);
+        enqueue(new Request(name, owner, comment, selection, false, null, reply));
+    }
     public void requestRestore(String name, Consumer<String> reply) { requestRestore(name, null, reply); }
-    public void requestRestore(String name, SnapshotIO.Metadata expected, Consumer<String> reply) { enqueue(new Request(name, null, true, expected, reply)); }
+    public void requestRestore(String name, SnapshotIO.Metadata expected, Consumer<String> reply) { requestRestore(null, name, expected, reply); }
+    public void requestRestore(String owner, String name, SnapshotIO.Metadata expected, Consumer<String> reply) {
+        enqueue(new Request(name, owner, "", null, true, expected, reply));
+    }
+    /** Main-thread reservation spans catalog IO and its callback, preventing deletion/publication races. */
+    public void beginCatalogMutation() {
+        if (busy()) throw new IllegalStateException("EDB 正在执行操作，请完成后重试");
+        catalogMutation = true;
+    }
+    public void endCatalogMutation() { catalogMutation = false; }
+    public boolean busy() { return active || pending != null || catalogMutation; }
     public record Progress(String name, boolean restore, String phase, int processed, int total, long elapsedSeconds) {}
     public Progress progressView() {
         Request current = active ? request : pending;
-        return new Progress(current == null ? "" : current.name, current != null && current.restore,
+        return new Progress(current == null ? "" : current.label(), current != null && current.restore,
                 active ? phase.name() : pending == null ? "IDLE" : "QUEUED", cursor,
                 active && region != null ? region.size() : 0, active ? (System.nanoTime() - startedAt) / 1_000_000_000 : 0);
     }
     private void enqueue(Request next) {
-        if (active || pending != null) throw new IllegalStateException("Another EDB operation is running");
+        if (busy()) throw new IllegalStateException("Another EDB operation is running");
         org.edtp.edb.adaptors.ModCompatibility.verify();
-        SnapshotIO.backup(SnapshotIO.root(server), next.name);
+        SnapshotIO.backup(SnapshotIO.scope(SnapshotIO.root(server), next.owner), next.name);
         pending = next;
     }
     public String status() { return active ? phase + " " + cursor + "/" + (region == null ? "?" : region.size()) + (phase == Phase.FAILED ? " — " + lastResult : "") : lastResult; }
@@ -123,17 +140,17 @@ public final class RegionBackupService implements AutoCloseable {
             Path root = SnapshotIO.root(server);
             String worldId = SnapshotIO.worldId(root);
             if (initializing.restore) {
-                Path path = SnapshotIO.backup(root, initializing.name);
+                Path path = SnapshotIO.backup(SnapshotIO.scope(root, initializing.owner), initializing.name);
                 var stored = SnapshotIO.readMetadata(path, worldId);
                 if (initializing.expected != null && !initializing.expected.equals(stored))
                     throw new IllegalStateException("Backup metadata changed after preview; preview it again");
                 return new Init(root, path, stored, SnapshotIO.readRuntime(path));
             }
-            return new Init(root, SnapshotIO.begin(root, initializing.name), new SnapshotIO.Metadata(initializing.region, worldId, 0,
-                    SharedConstants.getCurrentVersion().dataVersion().version()), null);
+            return new Init(root, SnapshotIO.begin(SnapshotIO.scope(root, initializing.owner), initializing.name), new SnapshotIO.Metadata(initializing.region, worldId, 0,
+                    SharedConstants.getCurrentVersion().dataVersion().version()).withComment(initializing.comment), null);
         });
         OperationMessages.started(server, progressView());
-        reply("EDB: simulation paused; preparing " + request.name);
+        reply("EDB: simulation paused; preparing " + request.label());
     }
     /** Called instead of tickServer, while the outer server loop and watchdog remain live. */
     public void maintenanceFrame() {
@@ -160,7 +177,7 @@ public final class RegionBackupService implements AutoCloseable {
                 case FLUSH -> flush();
                 case UNMASK -> unmask();
                 case RELOAD -> reload();
-                case PUBLISH -> { if (done()) finish("Backup complete: " + request.name + " (" + region.size() + " chunks)"); }
+                case PUBLISH -> { if (done()) finish("Backup complete: " + request.label() + " (" + region.size() + " chunks)"); }
                 default -> {}
             }
         } catch (Exception failure) { fail(failure); }
@@ -259,7 +276,7 @@ public final class RegionBackupService implements AutoCloseable {
             } else transition(Phase.VALIDATE);
         }
         else {
-            metadata = new SnapshotIO.Metadata(region, metadata.worldId(), level.getGameTime(), metadata.dataVersion(), metadata.createdAt());
+            metadata = new SnapshotIO.Metadata(region, metadata.worldId(), level.getGameTime(), metadata.dataVersion(), metadata.createdAt(), metadata.comment());
             runtime = RuntimeStateCodec.captureEvents(level, region);
             ModCompatibility.capturePlayers(level, region, runtime);
             entityOrder = RuntimeStateCodec.entityOrder(level); blockEntityOrder = RuntimeStateCodec.blockEntityOrder(level);
@@ -318,7 +335,7 @@ public final class RegionBackupService implements AutoCloseable {
         }
         if (cursor == region.size()) {
             runtime.putLong("min_order", minOrder); runtime.putLong("max_order", maxOrder);
-            Path staging = directory, destination = SnapshotIO.backup(root, request.name);
+            Path staging = directory, destination = SnapshotIO.backup(SnapshotIO.scope(root, request.owner), request.name);
             SnapshotIO.Metadata manifest = metadata; CompoundTag runtimeTag = runtime;
             work = supply(() -> { SnapshotIO.publish(staging, destination, manifest, runtimeTag); return null; });
             transition(Phase.PUBLISH); return;
@@ -496,7 +513,7 @@ public final class RegionBackupService implements AutoCloseable {
         }
         RuntimeStateCodec.ordersChanged(level); RuntimeStateCodec.installOrders(level);
         ModCompatibility.afterRestore(level, region);
-        finish("Restore complete: " + request.name + " (" + region.size() + " chunks)");
+        finish("Restore complete: " + request.label() + " (" + region.size() + " chunks)");
     }
     /** Observe vanilla writes because synchronize alone can miss a previously failed write. */
     public void observeWrite(SimpleRegionStorage storage, CompletableFuture<?> future) {
@@ -524,7 +541,7 @@ public final class RegionBackupService implements AutoCloseable {
             server.schedule(new net.minecraft.server.TickTask(server.getTickCount(), () -> ((RegionAccess.StructureCache) restoredLevel).edb$invalidate(restoredRegion)));
         }
         reply(message);
-        OperationMessages.finished(server, request.name, request.restore, message.startsWith("EDB failed"), (System.nanoTime() - startedAt) / 1_000_000_000);
+        OperationMessages.finished(server, request.label(), request.restore, message.startsWith("EDB failed"), (System.nanoTime() - startedAt) / 1_000_000_000);
         LOG.info("EDB maintenance: {} frames, {} ms elapsed, longest frame {} ms", frames, (System.nanoTime() - startedAt) / 1_000_000, maxFrameNanos / 1_000_000);
         Runnable task; while ((task = deferred.poll()) != null) server.execute(task);
     }

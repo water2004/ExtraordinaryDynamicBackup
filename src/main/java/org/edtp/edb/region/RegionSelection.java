@@ -17,6 +17,11 @@ public record RegionSelection(String dimension, int minX, int minZ, int maxX, in
                 Math.max(x1, x2), Math.max(z1, z2));
     }
 
+    /** User coordinates are blocks; include every chunk touched by the two endpoints. */
+    public static RegionSelection fromBlocks(String dimension, int x1, int z1, int x2, int z2) {
+        return of(dimension, Math.floorDiv(x1, 16), Math.floorDiv(z1, 16), Math.floorDiv(x2, 16), Math.floorDiv(z2, 16));
+    }
+
     public int size() { return (maxX - minX + 1) * (maxZ - minZ + 1); }
     public ChunkPos at(int index) {
         if (index < 0 || index >= size()) throw new IndexOutOfBoundsException(index);

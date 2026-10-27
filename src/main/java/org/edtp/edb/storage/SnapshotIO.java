@@ -31,10 +31,15 @@ public final class SnapshotIO {
     private static final int PUBLISH_MOVE_ATTEMPTS = 5;
     private SnapshotIO() {}
 
-    public record Metadata(RegionSelection region, String worldId, long gameTime, int dataVersion, long createdAt) {
+    public record Metadata(RegionSelection region, String worldId, long gameTime, int dataVersion, long createdAt, String comment) {
+        public Metadata(RegionSelection region, String worldId, long gameTime, int dataVersion, long createdAt) {
+            this(region, worldId, gameTime, dataVersion, createdAt, "");
+        }
         public Metadata(RegionSelection region, String worldId, long gameTime, int dataVersion) {
             this(region, worldId, gameTime, dataVersion, System.currentTimeMillis());
         }
+        public Metadata { validateComment(comment); }
+        public Metadata withComment(String text) { return new Metadata(region, worldId, gameTime, dataVersion, createdAt, text); }
         public CompoundTag encode() {
             CompoundTag tag = new CompoundTag();
             tag.putInt("format", FORMAT);
@@ -46,6 +51,7 @@ public final class SnapshotIO {
             tag.putInt("max_x", region.maxX()); tag.putInt("max_z", region.maxZ());
             tag.putLong("game_time", gameTime);
             tag.putLong("created_at", createdAt);
+            tag.putString("comment", comment);
             tag.putInt("chunks", region.size());
             return tag;
         }
@@ -65,6 +71,16 @@ public final class SnapshotIO {
     public static Path backup(Path root, String name) {
         validateName(name);
         return root.resolve("backups").resolve(name);
+    }
+    /** Programmatic callers may omit a scope; user commands always provide a named region. */
+    public static Path scope(Path root, String region) {
+        if (region == null) return root;
+        validateName(region);
+        return root.resolve("regions").resolve(region);
+    }
+    public static void validateComment(String comment) {
+        if (comment == null || comment.length() > 256 || comment.codePoints().anyMatch(Character::isISOControl))
+            throw new IllegalArgumentException("备注最多 256 个字符，不能包含控制字符");
     }
     public static void validateName(String name) {
         if (!NAME.matcher(name).matches()) throw new IllegalArgumentException("Name: 1-64 letters, digits, '_' or '-'");
@@ -131,7 +147,7 @@ public final class SnapshotIO {
                 tag.getInt("min_x").orElseThrow(), tag.getInt("min_z").orElseThrow(),
                 tag.getInt("max_x").orElseThrow(), tag.getInt("max_z").orElseThrow());
         if (tag.getIntOr("chunks", -1) != region.size()) throw new IOException("Incomplete chunk manifest");
-        return new Metadata(region, worldId, tag.getLong("game_time").orElseThrow(), tag.getInt("data_version").orElseThrow(), tag.getLongOr("created_at", 0));
+        return new Metadata(region, worldId, tag.getLong("game_time").orElseThrow(), tag.getInt("data_version").orElseThrow(), tag.getLongOr("created_at", 0), tag.getStringOr("comment", ""));
     }
     public static CompoundTag readRuntime(Path directory) throws IOException {
         return NbtIo.readCompressed(directory.resolve("runtime.nbt"), NbtAccounter.create(MAX_NBT_BYTES));

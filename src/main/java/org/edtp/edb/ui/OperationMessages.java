@@ -20,7 +20,8 @@ public final class OperationMessages {
         return 0;
     }
     public static String region(RegionSelection region) {
-        return region.dimension() + " | 区块 (" + region.minX() + ", " + region.minZ() + ") → (" + region.maxX() + ", " + region.maxZ()
+        return region.dimension() + " | 方块 X/Z (" + region.minX() * 16 + ", " + region.minZ() * 16 + ") → (" + (region.maxX() * 16 + 15) + ", " + (region.maxZ() * 16 + 15)
+                + ") | 区块 (" + region.minX() + ", " + region.minZ() + ") → (" + region.maxX() + ", " + region.maxZ()
                 + ")，共 " + region.size() + " 个，全部高度";
     }
     public static String progressText(Progress progress) {
