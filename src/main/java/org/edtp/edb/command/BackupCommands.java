@@ -31,17 +31,23 @@ public final class BackupCommands {
         dispatcher.register(literal("edb").requires(BackupConfig::allowed).executes(c -> help(c.getSource()))
             .then(literal("help").executes(c -> help(c.getSource())))
             .then(literal("status").executes(c -> status(c.getSource())))
+            .then(literal("gui").executes(c -> org.edtp.edb.protocol.ManagementServer.open(c.getSource())))
             .then(literal("reload").requires(Commands.hasPermission(Commands.LEVEL_OWNERS)).executes(c -> guarded(c.getSource(), () -> {
                 BackupConfig.reload();
                 catalog(c.getSource()).confirmations.clear();
                 for (var player : c.getSource().getServer().getPlayerList().getPlayers()) c.getSource().getServer().getCommands().sendCommands(player);
                 reply(c.getSource(), "配置已重载，权限为 OP " + BackupConfig.permissionLevel() + "；待确认操作已取消。");
             })))
-            .then(literal("confirm").executes(c -> confirm(c.getSource())))
+            .then(literal("confirm").executes(c -> confirm(c.getSource(), null))
+                .then(argument("token", StringArgumentType.word()).executes(c -> confirm(c.getSource(), StringArgumentType.getString(c, "token")))))
             .then(literal("abort").executes(c -> {
                 catalog(c.getSource()).confirmations.cancel(sourceKey(c.getSource()));
                 return reply(c.getSource(), "待确认操作已取消；不会中断已开始的备份、恢复或删除。");
-            }))
+            }).then(argument("token", StringArgumentType.word()).executes(c -> {
+                if (!catalog(c.getSource()).confirmations.cancel(sourceKey(c.getSource()), StringArgumentType.getString(c, "token")))
+                    return error(c.getSource(), new IllegalStateException("待确认操作已改变或不存在"));
+                return reply(c.getSource(), "已取消对应的待确认操作。");
+            })))
             .then(literal("region").executes(c -> regionList(c.getSource(), 1))
                 .then(literal("list").executes(c -> regionList(c.getSource(), 1))
                     .then(argument("page", IntegerArgumentType.integer(1)).executes(c -> regionList(c.getSource(), IntegerArgumentType.getInteger(c, "page")))))
@@ -80,11 +86,20 @@ public final class BackupCommands {
     private static String prefix(String owner) { return "/edb region " + quote(owner); }
     private static RegionSelection selection(CommandContext<CommandSourceStack> c) {
         String[] raw = StringArgumentType.getString(c, "coordinates").trim().split("\\s+");
+        String dimension = c.getSource().getLevel().dimension().identifier().toString();
+        if (raw.length >= 2 && raw[0].equals("in")) {
+            var identifier = net.minecraft.resources.Identifier.tryParse(raw[1]);
+            if (identifier == null) throw new IllegalArgumentException("无效维度：" + raw[1]);
+            dimension = identifier.toString(); raw = java.util.Arrays.copyOfRange(raw, 2, raw.length);
+            final String selectedDimension = dimension;
+            boolean available = java.util.stream.StreamSupport.stream(c.getSource().getServer().getAllLevels().spliterator(), false)
+                    .anyMatch(level -> level.dimension().identifier().toString().equals(selectedDimension));
+            if (!available) throw new IllegalArgumentException("维度不可用：" + dimension);
+        }
         if (raw.length != 4 && raw.length != 6) throw new IllegalArgumentException("请输入 4 个方块坐标 X1 Z1 X2 Z2（全高度），或 6 个 X1 Y1 Z1 X2 Y2 Z2");
         int[] p;
         try { p = java.util.Arrays.stream(raw).mapToInt(Integer::parseInt).toArray(); }
         catch (NumberFormatException error) { throw new IllegalArgumentException("方块坐标必须为整数"); }
-        String dimension = c.getSource().getLevel().dimension().identifier().toString();
         return p.length == 4 ? RegionSelection.fromBlocks(dimension, p[0], p[1], p[2], p[3]) : RegionSelection.fromBox(dimension, p[0], p[1], p[2], p[3], p[4], p[5]);
     }
     private static int help(CommandSourceStack source) {
@@ -94,6 +109,7 @@ public final class BackupCommands {
         reply(source, "/edb region <区域> make [备注] | list [页] | show [编号] | back <编号>");
         reply(source, "/edb region <区域> comment <编号> [新备注]；delete <编号> 删除单个备份，delete 不带编号删除整个区域及其备份");
         reply(source, "/edb region <区域> update <x1> <z1> <x2> <z2> — 只影响以后创建的备份");
+        reply(source, "create/update 的坐标前可加 in <维度>；/edb gui 打开可选客户端界面。");
         reply(source, "/edb confirm | abort — 确认或取消预览；/edb status | reload（OP 4）");
         return reply(source, "备份/恢复会暂停整服模拟。删除区域会同时删除其下全部备份。");
     }
@@ -140,19 +156,19 @@ public final class BackupCommands {
     private static int saveRegion(CommandContext<CommandSourceStack> c, boolean replace) {
         var source = c.getSource(); var selection = selection(c); String owner = owner(c);
         return mutate(source, () -> { catalog(source).regions.put(owner, selection, replace); return selection; },
-            saved -> reply(source, (replace ? "已更新区域 " : "已创建区域 ") + owner + "：" + region(saved) + "。" + (replace ? "已有备份仍按各自范围恢复。" : "使用 " + prefix(owner) + " make [备注] 创建备份。")));
+            saved -> result(source, (replace ? "已更新区域 " : "已创建区域 ") + owner + "：" + region(saved) + "。" + (replace ? "已有备份仍按各自范围恢复。" : "使用 " + prefix(owner) + " make [备注] 创建备份。"), org.edtp.edb.protocol.ManagementPayloads.Result.REGION_SAVED));
     }
     private static int make(CommandSourceStack source, String owner, String comment) {
         try { SnapshotIO.validateComment(comment); } catch (Exception error) { return error(source, error); }
         return mutate(source, () -> catalog(source).backups.allocate(owner), creation -> {
                 var service = RegionBackupService.get(source.getServer());
                 service.requestBackup(owner, creation.id(), comment, creation.selection(), text -> operationReply(source, service, text, owner, creation.id()));
-                reply(source, "备份已排队：" + owner + " #" + creation.id() + " | 备注：" + (comment.isEmpty() ? "无备注" : comment));
+                result(source, "备份已排队：" + owner + " #" + creation.id() + " | 备注：" + (comment.isEmpty() ? "无备注" : comment), org.edtp.edb.protocol.ManagementPayloads.Result.BACKUP_QUEUED);
         });
     }
     private static int comment(CommandSourceStack source, String owner, String id, String text) {
         return mutate(source, () -> { catalog(source).backups.comment(owner, id, text); return id; },
-            ignored -> reply(source, "已更新备注：" + owner + " #" + id + " | " + (text.isEmpty() ? "无备注" : text)));
+            ignored -> result(source, "已更新备注：" + owner + " #" + id + " | " + (text.isEmpty() ? "无备注" : text), org.edtp.edb.protocol.ManagementPayloads.Result.COMMENT_SAVED));
     }
     private static String timestamp(SnapshotIO.Metadata metadata) { return metadata.createdAt() == 0 ? "时间未记录" : DATE.format(Instant.ofEpochMilli(metadata.createdAt())); }
     private static String note(SnapshotIO.Metadata metadata) { return metadata.comment().isEmpty() ? "无备注" : metadata.comment(); }
@@ -162,7 +178,7 @@ public final class BackupCommands {
             reply(source, "备份 " + owner + " #" + id + " | " + timestamp(metadata) + " | " + note(metadata));
             reply(source, region(metadata.region()) + " | 捕获时世界刻：" + metadata.gameTime());
             if (!restore) { suggest(source, "[预览恢复]", prefix(owner) + " back " + id); return; }
-            reply(source, "将覆盖此备份记载范围内的地形、实体和 POI，包括未加载区块。整服模拟暂停；真实玩家须离开选区，玩家背包与全局时间不回退。");
+            reply(source, "将覆盖此备份记载范围内的地形、实体和 POI，包括未加载区块。整服模拟暂停；真实玩家须离开涉及区块，玩家背包与全局时间不回退。");
             arm(source, token, new CommandConfirmations.Action(CommandConfirmations.Kind.RESTORE, owner, id, metadata), "恢复 " + owner + " #" + id);
         });
     }
@@ -185,13 +201,14 @@ public final class BackupCommands {
     private static void arm(CommandSourceStack source, Object token, CommandConfirmations.Action action, String description) {
         if (RegionBackupService.get(source.getServer()).busy()) throw new IllegalStateException("EDB 正在执行操作，请稍后重新预览");
         if (catalog(source).confirmations.remember(sourceKey(source), token, action, System.nanoTime())) {
-            suggest(source, "[确认] " + description + "；60 秒内确认", "/edb confirm");
-            suggest(source, "[取消]", "/edb abort");
+            String nonce = catalog(source).confirmations.peek(sourceKey(source), System.nanoTime()).nonce();
+            runLink(source, "[确认] " + description + "；60 秒内确认", "/edb confirm " + nonce);
+            runLink(source, "[取消]", "/edb abort " + nonce);
         }
     }
-    private static int confirm(CommandSourceStack source) {
+    private static int confirm(CommandSourceStack source, String nonce) {
         return guarded(source, () -> {
-            var action = catalog(source).confirmations.consume(sourceKey(source), System.nanoTime());
+            var action = catalog(source).confirmations.consume(sourceKey(source), nonce, System.nanoTime());
             switch (action.kind()) {
                 case RESTORE -> {
                     var service = RegionBackupService.get(source.getServer());
@@ -225,6 +242,10 @@ public final class BackupCommands {
     }
     private static void suggest(CommandSourceStack source, String text, String command) {
         source.sendSuccess(() -> Component.literal("[EDB] ").append(button(text + "\n" + command, command)), false);
+    }
+    private static void runLink(CommandSourceStack source, String text, String command) {
+        source.sendSuccess(() -> Component.literal("[EDB] ").append(button(text, command)
+                .withStyle(style -> style.withClickEvent(new ClickEvent.RunCommand(command)))), false);
     }
     private static <T> int query(CommandSourceStack source, BackupCatalog.Task<T> task, Consumer<T> result) { return submit(source, task, result, false); }
     private static <T> int mutate(CommandSourceStack source, BackupCatalog.Task<T> task, Consumer<T> result) { return submit(source, task, result, true); }

@@ -31,7 +31,8 @@ public abstract class GameListenerMixin implements RegionAccess.ClientReset {
     private void edb$gate(Packet<?> packet, CallbackInfoReturnable<Boolean> cir) {
         if (RegionBackupService.paused(((RegionAccess.Connection) this).edb$server()) && !(packet instanceof ServerboundKeepAlivePacket)
             && !(packet instanceof ServerboundPongPacket) && !(packet instanceof ServerboundChunkBatchReceivedPacket)
-            && !(packet instanceof ServerboundChatCommandPacket) && !(packet instanceof ServerboundChatCommandSignedPacket)) {
+            && !(packet instanceof ServerboundChatCommandPacket) && !(packet instanceof ServerboundChatCommandSignedPacket)
+            && !(packet instanceof ServerboundCustomPayloadPacket custom && custom.payload() instanceof org.edtp.edb.protocol.ManagementPayloads.Request)) {
             int sequence = -1;
             net.minecraft.core.BlockPos pos = null;
             if (packet instanceof ServerboundPlayerActionPacket action) { sequence = action.getSequence(); pos = action.getPos(); }

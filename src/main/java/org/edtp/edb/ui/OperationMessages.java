@@ -11,11 +11,16 @@ import org.edtp.edb.region.RegionSelection;
 public final class OperationMessages {
     private OperationMessages() {}
     public static int reply(CommandSourceStack source, String text) {
+        return result(source, text, org.edtp.edb.protocol.ManagementPayloads.Result.NONE);
+    }
+    public static int result(CommandSourceStack source, String text, org.edtp.edb.protocol.ManagementPayloads.Result result) {
+        org.edtp.edb.protocol.ManagementServer.feedback(source, text, false, result);
         source.sendSuccess(() -> Component.literal("[EDB] " + text), false);
         return 1;
     }
     public static int error(CommandSourceStack source, Throwable error) {
         while (error instanceof java.util.concurrent.CompletionException && error.getCause() != null) error = error.getCause();
+        org.edtp.edb.protocol.ManagementServer.feedback(source, error.getMessage() == null ? error.toString() : error.getMessage(), true);
         source.sendFailure(Component.literal("[EDB] " + (error.getMessage() == null ? error.toString() : error.getMessage())));
         return 0;
     }
@@ -27,7 +32,7 @@ public final class OperationMessages {
                 + " | 区块 (" + region.minX() + ", " + region.minZ() + ") → (" + region.maxX() + ", " + region.maxZ()
                 + ")，涉及 " + region.size() + " 个";
     }
-    public static String progressText(Progress progress) {
+    public static String stageText(Progress progress) {
         String phase = switch (progress.phase()) {
             case "IDLE" -> "空闲";
             case "QUEUED" -> "已排队，等待本 tick 结束";
@@ -50,9 +55,10 @@ public final class OperationMessages {
             default -> progress.phase();
         };
         boolean counted = switch (progress.phase()) { case "SETTLE", "LIGHT", "CAPTURE", "VALIDATE", "PRESERVE", "APPLY", "UNMASK" -> true; default -> false; };
-        return (progress.restore() ? "恢复 " : "备份 ") + progress.name() + "：" + phase
-                + (counted && progress.total() > 0 ? "（本阶段 " + progress.processed() + "/" + progress.total() + " 区块）" : "")
-                + "，已用 " + progress.elapsedSeconds() + " 秒";
+        return phase + (counted && progress.total() > 0 ? "（" + progress.processed() + "/" + progress.total() + " 区块）" : "");
+    }
+    public static String progressText(Progress progress) {
+        return (progress.restore() ? "恢复 " : "备份 ") + progress.name() + "：" + stageText(progress) + "，已用 " + progress.elapsedSeconds() + " 秒";
     }
     public static void started(MinecraftServer server, Progress progress) {
         announce(server, "开始" + (progress.restore() ? "恢复 " : "备份 ") + progress.name() + "。整服模拟暂时暂停，连接保持；完成后自动继续。", ChatFormatting.YELLOW, false);

@@ -11,6 +11,7 @@ public final class ExtraordinaryDynamicBackup implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        org.edtp.edb.protocol.ManagementServer.initialize();
         org.edtp.edb.adaptors.ModCompatibility.initialize();
         try { org.edtp.edb.config.BackupConfig.reload(); }
         catch (java.io.IOException e) { throw new IllegalStateException("Cannot load EDB configuration", e); }

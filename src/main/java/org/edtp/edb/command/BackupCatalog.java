@@ -21,6 +21,7 @@ public final class BackupCatalog implements AutoCloseable {
         backups = new org.edtp.edb.storage.BackupRepository(SnapshotIO.root(server), regions);
     }
     public static BackupCatalog get(MinecraftServer server) { return CATALOGS.computeIfAbsent(server, BackupCatalog::new); }
+    public static BackupCatalog find(MinecraftServer server) { return CATALOGS.get(server); }
     public static void close(MinecraftServer server) { var catalog = CATALOGS.remove(server); if (catalog != null) catalog.close(); }
     public <T> CompletableFuture<T> submit(Task<T> task) {
         try {
