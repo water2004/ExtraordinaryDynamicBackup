@@ -1,8 +1,0 @@
-{
-  "required": true,
-  "package": "org.edtp.edb.adaptors.entity_collision_optimizer.mixin",
-  "compatibilityLevel": "JAVA_25",
-  "plugin": "org.edtp.edb.adaptors.AdaptorMixinPlugin",
-  "mixins": ["EcoFrameMixin", "EcoPushBatchMixin"],
-  "injectors": {"defaultRequire": 1}
-}

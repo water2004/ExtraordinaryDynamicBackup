@@ -34,7 +34,6 @@ public class RegionGameTests {
     @GameTest(structure = "fabric-gametest-api-v1:empty", maxTicks = 1000000)
     public void loadedChunkRoundTrip(GameTestHelper test) {
         org.spongepowered.asm.mixin.MixinEnvironment.getCurrentEnvironment().audit();
-        org.edtp.edb.adaptors.entity_collision_optimizer.EcoLeaseProbe.run(test);
         org.edtp.edb.adaptors.bluemap.BlueMapProbe.awaitReady(test, () ->
             org.edtp.edb.adaptors.scalablelux.ScalableLuxProbe.run(test,
                 ChunkPos.unpack(ChunkPos.pack(test.absolutePos(new BlockPos(1, 2, 1)))), () ->
@@ -337,10 +336,7 @@ public class RegionGameTests {
                     test.assertTrue(level.getChunkAt(pos) == before, "Invalid backup unloaded live chunks");
                     test.assertTrue(level.getBlockState(pos).is(Blocks.GOLD_BLOCK), "Invalid backup changed the world");
                     if (Boolean.getBoolean("edb.test.stress")) RegionStressTests.run(test);
-                    else {
-                        org.edtp.edb.adaptors.entity_collision_optimizer.EcoLeaseProbe.assertIdle(test);
-                        C2meStorageProbe.probeSwallowedStorageFailure(test, test::succeed);
-                    }
+                    else C2meStorageProbe.probeSwallowedStorageFailure(test, test::succeed);
                 });
             });
         });

@@ -166,7 +166,6 @@ final class RegionStressTests {
         measurements.add(operation + "," + m.frames() + "," + m.elapsedNanos() / 1000000 + "," + m.maxFrameNanos() / 1000000);
     }
     private void complete() {
-        org.edtp.edb.adaptors.entity_collision_optimizer.EcoLeaseProbe.assertIdle(test);
         try {
             String profile = System.getProperty("edb.test.profile", "vanilla");
             String report = profile.length() > 120 ? "mods-" + Integer.toUnsignedString(profile.hashCode(), 16) : profile.replace(',', '_');
