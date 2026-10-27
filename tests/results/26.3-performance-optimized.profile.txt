@@ -1,0 +1,1 @@
+carpet,carpet-tis-addition,carpet-ams-addition,lithium,vmp-fabric,c2me-fabric,teleportcommandsfabric,eco,edtp,gca,extra-extras,servux,ferrite-core,servercore,krypton,alternate-current,chunky,spark,syncmatica,scalablelux,clumps,bluemap,squaremap,worldedit,luckperms,simple-voice-chat,fabricproxy-lite,ledger,fabric-language-kotlin,debugify
