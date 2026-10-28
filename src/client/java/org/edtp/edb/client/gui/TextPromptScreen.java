@@ -1,34 +1,41 @@
 package org.edtp.edb.client.gui;
 
-import fi.dy.masa.malilib.gui.GuiBase;
-import fi.dy.masa.malilib.gui.GuiTextFieldGeneric;
+import fi.dy.masa.malilib.gui.GuiTextInputBase;
+import fi.dy.masa.malilib.gui.button.ButtonGeneric;
 import fi.dy.masa.malilib.render.GuiContext;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
-
+import org.edtp.edb.client.ManagementClient;
+import org.edtp.edb.protocol.ManagementPayloads;
 import java.util.function.Function;
 
-final class TextPromptScreen extends CommandForm {
-    private final String description, submit;
+/** Native malilib text dialog with an async acknowledgement; no custom input or drawing. */
+final class TextPromptScreen extends GuiTextInputBase implements EdbScreen {
     private final Function<String, String> action;
-    private final org.edtp.edb.protocol.ManagementPayloads.Result expected;
-    private String value;
-    TextPromptScreen(Screen parent, String title, String description, String initial, String submit, org.edtp.edb.protocol.ManagementPayloads.Result expected, Function<String, String> action) {
-        setTitle(title); setParent(parent); useTitleHierarchy = false;
-        this.description = description; this.value = initial; this.submit = submit; this.expected = expected; this.action = action;
+    private final ManagementPayloads.Result expected;
+    private final CommandSubmission submission = new CommandSubmission();
+    TextPromptScreen(Screen parent, String title, String initial, ManagementPayloads.Result expected, Function<String, String> action) {
+        super(256, title, initial, parent);
+        this.expected = expected; this.action = action;
+        ManagementClient.INSTANCE.notice("", false);
     }
     @Override public void initGui() {
-        super.initGui(); int body = Math.min(500, width - 32), x = (width - body) / 2, y = Math.max(42, height / 2 - 35);
-        if (!description.isEmpty()) addLabel(x, y, body, 14, COLOR_WHITE, Controls.clip(this, description, body));
-        int fieldY = y + (description.isEmpty() ? 0 : 22);
-        var field = new GuiTextFieldGeneric(x, fieldY, body, 20, font);
-        addTextField(field, edited -> { value = edited.getValueWrapper(); return true; });
-        field.setMaxLengthWrapper(256); field.setValueWrapper(value);
-        field.moveCursorToEnd(false);
-        field.setEditable(!submitting);
-        Controls.button(this, x + body - 100, fieldY + 30, 100, submitting ? "提交中" : submit, !submitting, () -> submit(action.apply(value), expected));
-        Controls.button(this, x, fieldY + 30, 80, "返回", true, () -> Minecraft.getInstance().gui.setScreen(getParent()));
+        clearElements(); centerOnScreen();
+        textField.setX(dialogLeft + 10); textField.setY(dialogTop + 20);
+        textField.setEditable(!submission.pending());
+        super.initGui();
     }
-    @Override protected void drawContents(GuiContext context, int x, int y, float partialTicks) { Controls.footer(this, context); }
-    @Override protected void drawScreenBackground(GuiContext context, int x, int y) { Controls.background(this, context); }
+    @Override protected int createButton(int x, int y, ButtonType type) {
+        if (type == ButtonType.RESET) return 0;
+        var button = new ButtonGeneric(x, y, 60, 20, type.getDisplayName());
+        button.setEnabled(type != ButtonType.OK || !submission.pending() && ManagementClient.INSTANCE.writable());
+        return addButton(button, createActionListener(type)).getWidth();
+    }
+    @Override protected boolean applyValue(String value) {
+        try { if (submission.submit(action.apply(value), expected)) initGui(); }
+        catch (IllegalArgumentException error) { ManagementClient.INSTANCE.notice(error.getMessage(), true); }
+        return false; // Keep the draft until the server accepts it.
+    }
+    @Override public void tick() { submission.tick(getParent(), this::initGui); }
+    @Override protected void drawTitle(GuiContext context, int x, int y, float ticks) {}
+    @Override public boolean isPauseScreen() { return false; }
 }

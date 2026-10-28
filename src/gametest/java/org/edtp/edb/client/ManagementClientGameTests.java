@@ -54,8 +54,7 @@ public final class ManagementClientGameTests implements FabricClientGameTest {
             context.waitFor(client -> client.gui.screen() instanceof RegionEditorScreen);
             context.takeScreenshot("edb-editor-640x480");
             // Type into the actual malilib field, exercising its change listener.
-            point(context, 70, Math.max(28, (context.computeOnClient(client -> client.gui.screen().height) - 206) / 2) + 24);
-            context.getInput().pressMouse(0); context.getInput().typeChars("gui_test");
+            typeField(context, 0, "gui_test");
             for (int index : new int[]{2, 4, 5, 7}) typeField(context, index, "32");
             world.getServer().runOnServer(server -> server.overworld().setBlockAndUpdate(new BlockPos(32, 70, 32), net.minecraft.world.level.block.Blocks.STONE.defaultBlockState()));
             click(context, "保存区域");
@@ -76,14 +75,22 @@ public final class ManagementClientGameTests implements FabricClientGameTest {
             context.waitFor(client -> ManagementClient.INSTANCE.owner.equals("gui_test") && !ManagementClient.INSTANCE.loading());
             click(context, "创建备份");
             context.waitTicks(2);
-            click(context, "创建");
+            typeField(context, 0, "施工前");
+            context.takeScreenshot("edb-native-text-dialog");
+            click(context, fi.dy.masa.malilib.util.StringUtils.translate("malilib.gui.button.ok"));
             context.waitFor(client -> ManagementClient.INSTANCE.catalog.getListOrEmpty("backups").size() == 1 && !ManagementClient.INSTANCE.busy());
             context.waitTicks(3);
             context.takeScreenshot("edb-backups-640x480");
             firstRow(context);
             context.waitFor(client -> client.gui.screen() instanceof BackupDetailsScreen);
             context.takeScreenshot("edb-backup-details-640x480");
-            menu(context, "更多", "删除备份");
+            click(context, "修改备注");
+            context.waitFor(client -> client.gui.screen() instanceof fi.dy.masa.malilib.gui.GuiTextInputBase);
+            typeField(context, 0, "第一次施工前，保留红石装置");
+            context.getInput().pressKey(com.mojang.blaze3d.platform.InputConstants.KEY_RETURN);
+            context.waitFor(client -> client.gui.screen() instanceof BackupDetailsScreen && ManagementClient.INSTANCE.catalog.getListOrEmpty("backups").stream()
+                    .anyMatch(raw -> ((CompoundTag) raw).getCompoundOrEmpty("metadata").getStringOr("comment", "").contains("红石装置")));
+            click(context, "删除备份");
             context.waitFor(client -> client.gui.screen() != null && client.gui.screen().getClass().getSimpleName().equals("ConfirmationScreen"));
             context.takeScreenshot("edb-confirm-640x480");
             click(context, "取消");
@@ -137,14 +144,37 @@ public final class ManagementClientGameTests implements FabricClientGameTest {
             context.runOnClient(client -> client.options.guiScale().set(2));
             context.getInput().resizeWindow(1280, 720);
             context.runOnClient(client -> client.gui.setScreen(new ManagementScreen()));
-            context.waitTicks(3); firstRow(context); context.waitTicks(2);
+            String[] notes = {"清理场地", "铺设基座", "完成布线", "装置联调", "检查容器", "扩建前", "扩建完成", "试运行", "验收前"};
+            for (String note : notes) {
+                int before = context.computeOnClient(client -> ManagementClient.INSTANCE.catalog.getIntOr("backup_total", 0));
+                context.runOnClient(client -> ManagementClient.INSTANCE.command("edb region gui_test make " + note));
+                context.waitFor(client -> !ManagementClient.INSTANCE.busy() && !ManagementClient.INSTANCE.loading()
+                        && ManagementClient.INSTANCE.catalog.getIntOr("backup_total", 0) == before + 1);
+            }
+            context.waitTicks(3);
             context.takeScreenshot("edb-backups-1280x720");
-            menu(context, "更多", "删除备份");
+            click(context, ">");
+            context.waitFor(client -> !ManagementClient.INSTANCE.loading() && ManagementClient.INSTANCE.backupPage == 2);
+            context.waitTicks(2);
+            context.runOnClient(client -> {
+                if (ManagementClient.INSTANCE.catalog.getListOrEmpty("backups").size() != 2) throw new AssertionError("Wrong second backup page");
+            });
+            click(context, "<");
+            context.waitFor(client -> !ManagementClient.INSTANCE.loading() && ManagementClient.INSTANCE.backupPage == 1);
+            context.getInput().resizeWindow(640, 480); context.waitTicks(3);
+            context.takeScreenshot("edb-backups-scroll-640x480");
+            context.getInput().resizeWindow(1280, 720); context.waitTicks(3);
+            firstRow(context);
+            context.waitFor(client -> client.gui.screen() instanceof BackupDetailsScreen);
+            context.takeScreenshot("edb-backup-details-1280x720");
+            click(context, "删除备份");
             context.waitFor(client -> client.gui.screen() != null && client.gui.screen().getClass().getSimpleName().equals("ConfirmationScreen"));
             click(context, "确认");
-            context.waitFor(client -> ManagementClient.INSTANCE.catalog.getListOrEmpty("backups").isEmpty());
+            context.waitFor(client -> ManagementClient.INSTANCE.catalog.getIntOr("backup_total", 0) == 9 && client.gui.screen() instanceof ManagementScreen);
             context.waitTicks(2);
-            menu(context, "区域管理", "删除区域");
+            click(context, "区域设置");
+            context.waitFor(client -> client.gui.screen() instanceof RegionEditorScreen);
+            click(context, "删除区域");
             context.waitFor(client -> client.gui.screen() != null && client.gui.screen().getClass().getSimpleName().equals("ConfirmationScreen"));
             click(context, "确认");
             context.waitFor(client -> ManagementClient.INSTANCE.owner.isEmpty() && ManagementClient.INSTANCE.catalog.getListOrEmpty("regions").stream()
@@ -167,6 +197,8 @@ public final class ManagementClientGameTests implements FabricClientGameTest {
             });
             context.getInput().setCursorPos(0, 0); context.waitTicks(2);
             context.takeScreenshot("edb-editor-aligned");
+            click(context, "预览范围");
+            click(context, "返回编辑");
             context.runOnClient(client -> {
                 var selection = ((RegionEditorScreen) client.gui.screen()).selection();
                 if (!selection.wholeChunks() || selection.blocks().minX() != -32 || selection.blocks().maxX() != 31
@@ -180,6 +212,10 @@ public final class ManagementClientGameTests implements FabricClientGameTest {
     private static void typeField(ClientGameTestContext context, int index, String value) {
         int[] xy = context.computeOnClient(client -> {
             try {
+                if (client.gui.screen() instanceof fi.dy.masa.malilib.gui.GuiTextInputBase) {
+                    var box = (fi.dy.masa.malilib.gui.GuiTextFieldGeneric) field(fi.dy.masa.malilib.gui.GuiTextInputBase.class, "textField").get(client.gui.screen());
+                    return new int[]{box.getX() + 8, box.getY() + 10};
+                }
                 @SuppressWarnings("unchecked") var fields = (List<fi.dy.masa.malilib.gui.wrappers.TextFieldWrapper<?>>) field(GuiBase.class, "textFields").get(client.gui.screen());
                 var box = fields.get(index).textField(); return new int[]{box.getX() + 8, box.getY() + 10};
             } catch (ReflectiveOperationException error) { throw new AssertionError(error); }
@@ -199,21 +235,6 @@ public final class ManagementClientGameTests implements FabricClientGameTest {
             } catch (ReflectiveOperationException error) { throw new AssertionError(error); }
         });
         point(context, position[0], position[1]); context.getInput().pressMouse(0); context.waitTicks(2);
-    }
-    private static void menu(ClientGameTestContext context, String caption, String action) {
-        int[] data = context.computeOnClient(client -> {
-            try {
-                var gui = (GuiBase) client.gui.screen();
-                @SuppressWarnings("unchecked") var widgets = (List<fi.dy.masa.malilib.gui.widgets.WidgetBase>) field(GuiBase.class, "widgets").get(gui);
-                for (var widget : widgets) if (widget.getClass().getSimpleName().equals("ActionMenu") && caption.equals(field(widget.getClass(), "caption").get(widget))) {
-                    @SuppressWarnings("unchecked") var entries = (List<String>) field(fi.dy.masa.malilib.gui.widgets.WidgetDropDownList.class, "entries").get(widget);
-                    return new int[]{widget.getX() + 20, widget.getY() + 10, widget.getY() + widget.getHeight() * (entries.indexOf(action) + 1) + widget.getHeight() / 2 + 1};
-                }
-                throw new AssertionError("Missing menu " + caption);
-            } catch (ReflectiveOperationException error) { throw new AssertionError(error); }
-        });
-        point(context, data[0], data[1]); context.getInput().pressMouse(0); context.waitTick();
-        point(context, data[0], data[2]); context.getInput().pressMouse(0); context.waitTick();
     }
     private static void point(ClientGameTestContext context, double x, double y) {
         double scale = context.computeOnClient(client -> client.getWindow().getGuiScale()); context.getInput().setCursorPos(x * scale, y * scale);

@@ -8,7 +8,8 @@ import org.edtp.edb.client.ManagementClient;
 final class Controls {
     private Controls() {}
     static void background(GuiBase screen, GuiContext context) {
-        fi.dy.masa.malilib.render.RenderUtils.drawRect(context, 0, 0, screen.getScreenWidth(), screen.getScreenHeight(), 0xFF18202D);
+        // Page backdrop only; native widgets retain their own appearance and input behavior.
+        fi.dy.masa.malilib.render.RenderUtils.drawRect(context, 0, 0, screen.getScreenWidth(), screen.getScreenHeight(), 0xFF20252D);
     }
     static ButtonGeneric button(GuiBase screen, int x, int y, int width, String label, boolean enabled, Runnable action) {
         var button = new ButtonGeneric(x, y, width, 20, label);

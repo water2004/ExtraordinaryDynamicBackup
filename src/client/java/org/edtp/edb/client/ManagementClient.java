@@ -53,7 +53,7 @@ public final class ManagementClient {
         command(command);
     }
     public void refresh() { dirty = true; }
-    public void browse(String region) { owner = region; backupPage = 1; refresh(); }
+    public void browse(String region) { owner = region; backupPage = 1; notice("", false); refresh(); }
     public long resultVersion(ManagementPayloads.Result result) { return results.getOrDefault(result, 0L); }
     public boolean command(String command) {
         if (!writable()) { notice(busy() ? "EDB 正在操作，请稍候。" : "尚未连接到支持的 EDB 服务端，或权限不足。", true); return false; }
