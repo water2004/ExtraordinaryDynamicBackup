@@ -2,6 +2,8 @@
 
 可选 malilib 客户端、统一命令执行路径及最新专用服组合回归见[客户端管理界面报告](../tests/results/26.3-client-management.md)。
 
+随后将界面简化为统一导航、直接使用 malilib 原生列表与输入对话框，见[原生控件回归](../tests/results/26.3-native-client.md)。
+
 记录日期：2026-10-27。Windows x64、Microsoft OpenJDK 25.0.2、Fabric Loader 0.19.5、Fabric API 0.162.0+26.3。测试使用独立 Gradle 运行目录，没有更改 Orbit 用户实例。
 
 2026-10-28 更新：区域管理、精确 XYZ/XZ、Carpet 假人限高载具恢复，以及 10,000 个未加载区块的 XYZ 合并均已通过同一 31 项依赖专用服组合，保持 10 秒 watchdog 与正常停服检查。最新格式为 2，原始数据和适用范围见[精确选区回归记录](../tests/results/26.3-precise-regions.md)。下文早期结果保留其原测试范围。

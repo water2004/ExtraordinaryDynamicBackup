@@ -4,7 +4,7 @@
 
 ## 使用
 
-区域列表中点击区域进入备份目录。创建备份是目录的主要操作；区域的编辑范围、高亮和删除放在“区域管理”菜单。备份列表同时显示时间与备注。宽窗口右侧显示所选备份详情，窄窗口进入独立详情页；恢复为主要操作，修改备注和删除放在“更多”菜单。
+区域列表中点击区域进入备份目录，再点击备份进入详情；大小窗口使用相同导航，Esc 返回上一层。备份列表按编号、创建时间、备注排列，截断的内容可悬停查看。创建备份是目录的主要操作；区域范围和删除在“区域设置”中。详情页集中显示该备份的信息、备注、高亮和恢复，删除独立放在页头。
 
 恢复、删除备份和删除区域先由服务器生成预览，再用 malilib 原生确认对话框确认。关闭窗口不执行操作；明确取消会撤销对应预览。表单收到服务端对应种类的成功结果后才关闭，错误时保留输入。服务器正在处理时只展示阶段进度，空闲时不常驻成功回显或操作说明。真实客户端聊天中的执行结果仍保留。
 
@@ -14,7 +14,7 @@
 - “读取投影选区”读取 Litematica 当前选中的区域子选区；只有一个框时可直接读取。多个框没有明确选中时拒绝，不自动取它们的外围大框。
 - 导入只填写坐标和维度，不直接创建服务器区域；后续编辑、预览和保存与手填一致。
 - “对齐整区块”向外扩展 X/Z 到区块边界，并切换为全高度。负坐标使用向下取整；不裁掉原选区，也不自动提交。
-- 高亮绘制十二条本地包围框边线，包含两端方块。全高度使用当前维度的实际高度。只保留一个高亮，断线清除，不读取／加载区块，不发送粒子。
+- “预览范围”展示世界中的线框，返回编辑或 Esc 后继续原草稿。高亮绘制十二条本地包围框边线，包含两端方块。全高度使用当前维度的实际高度。只保留一个高亮，断线清除，不读取／加载区块，不发送粒子。
 
 客户端命令 `/edbclient highlight <区域>` 可请求并高亮服务器区域；`/edbclient highlight clear` 清除。服务器命令 `/edb region <区域> show` 仍提供范围信息。
 
@@ -62,16 +62,18 @@ TPC 的请求 UUID、确认与取消链接、返回上下文做法用于本次�
 | `command/CommandConfirmations` | GUI／CLI 共用的一次性确认 |
 | `src/client/.../client/ManagementClient` | 连接生命周期、请求／响应和当前界面状态 |
 | `client/ClientCommands` | 表单到普通命令的转换 |
-| `client/gui/ManagementScreen` | 区域导航、备份目录与宽屏详情分栏 |
-| `client/gui/BackupDetailsScreen` | 只读详情和相关操作；也用于宽屏详情栏 |
+| `client/gui/ManagementScreen` | 区域导航、备份目录和分页 |
+| `client/gui/BackupDetailsScreen` | 统一的备份详情页及其操作 |
 | `client/gui/RegionEditorScreen` | 手填、导入、整区块对齐的共同表单 |
-| `client/gui/CommandForm` | 等待统一命令处理器的结果，失败保留输入 |
+| `client/gui/CommandSubmission` | 等待统一命令处理器的结果，失败保留输入；与控件无关 |
+| `client/gui/TextPromptScreen` | 原生 `GuiTextInputBase` 及异步提交结果 |
 | `client/gui/ConfirmationScreen` | 基于 `GuiConfirmAction` 的确认框 |
-| `client/gui/ListScreen` | 原生 malilib 列表选择／滚动，数据 ID 与截断文字分离 |
-| `client/gui/GuiLayout` | 窗口边距、内容宽度和分栏几何 |
+| `client/gui/ListScreen` | 向 `WidgetListStringSelection` 和 `WidgetStringListEntry` 提供数据、单元格标签；不覆盖绘制和输入 |
+| `client/gui/GuiLayout` | 浏览器的窗口边距和内容宽度 |
+| `client/gui/SelectionPreviewScreen` | 预览期间保留编辑草稿 |
 | `client/adaptors/litematica/` | 可选桥接；未安装时不链接 Litematica 类型 |
 | `client/render/RegionOutline` | 本地线框，不访问世界数据存储 |
 
-控件使用 malilib 的按钮、输入框、列表、标签、下拉菜单和确认对话框。布局不在窄窗口硬挤两栏；宽屏内容宽度有上限。当前 malilib 没有隐藏无溢出滚动条的开关，列表外观适配只遮去无用的满高滑块，继续使用其原生滚动／输入实现。
+直接调用 malilib 的原生列表／列表行、标签、悬停提示、整数输入框、开关按钮、输入对话框和确认对话框。EDB 只组合控件并连接业务数据；不复制控件实现，不覆盖列表行渲染、滚动条或输入事件，不维护下拉框改造的操作菜单。列表高度随内容和窗口变化，保留库的原生滚动条。区域表单的全高度使用 `ButtonOnOff`，坐标使用 `GuiTextFieldInteger`。没有随版本升级维护的控件分支。
 
 没有提升原有 Minecraft、Fabric API、Loader 或 Loom 版本。malilib 固定 `4cb96026bf`、Litematica 编译接口固定 `101ac3a23649`，沿用本机 ChainVeinFabric 26.3 的已使用版本。库不打包进 EDB，不成为专用服务器依赖；Litematica 不成为客户端必需依赖。渲染 API 参考 ChainVeinFabric 的 outline，选区读取对照 Litematica 与 litematica-printer。

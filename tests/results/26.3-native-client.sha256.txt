@@ -1,0 +1,4 @@
+8f86eaa0bea477234280c0ab46086be5016cd60d4b2fcb4634854f69e0886280  build/libs/ExtraordinaryDynamicBackup-0.1.0.jar
+b5190118aead3aa8fcc1c524c5111c581229c7baa2e9f2a7af93b1bb5a9535dd  .gradle/research/gui-native-client.log
+0539ee3ff8fe11ff175eb3a2bd7e2eb0393666218eb7dc15fab59109640d059b  .gradle/research/gui-native-no-litematica.log
+cad8e37044cb88acda3e1f778177fda36b6d38c513ede4ddb41031ac902dfb5b  .gradle/research/gui-native-no-libraries.log
